@@ -17,7 +17,7 @@ export default function Login() {
     try {
       await login(email, password)
     } catch (err) {
-      setError('Invalid email or password.')
+      setError(err.code || err.message || 'Login failed.')
     }
     setLoading(false)
   }
