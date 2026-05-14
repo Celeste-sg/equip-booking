@@ -18,13 +18,19 @@ export default function Dashboard() {
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [myBookings, setMyBookings] = useState([])
   const [tab, setTab] = useState('calendar') // 'calendar' | 'mine'
+  const [dbError, setDbError] = useState(false)
 
   useEffect(() => {
     async function loadEquipment() {
-      const snap = await getDocs(query(collection(db, 'equipment'), where('available', '==', true)))
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      setEquipment(list)
-      if (list.length > 0) setSelectedEquipment(list[0])
+      try {
+        const snap = await getDocs(query(collection(db, 'equipment'), where('available', '==', true)))
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        setEquipment(list)
+        if (list.length > 0) setSelectedEquipment(list[0])
+      } catch (err) {
+        console.warn('Failed to load equipment:', err.message)
+        setDbError(true)
+      }
     }
     loadEquipment()
   }, [])
@@ -34,7 +40,7 @@ export default function Dashboard() {
     const q = query(collection(db, 'bookings'), where('equipmentId', '==', selectedEquipment.id))
     const unsub = onSnapshot(q, (snap) => {
       setBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    })
+    }, (err) => console.warn('Bookings snapshot error:', err.message))
     return unsub
   }, [selectedEquipment])
 
@@ -47,7 +53,7 @@ export default function Dashboard() {
     )
     const unsub = onSnapshot(q, (snap) => {
       setMyBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    })
+    }, (err) => console.warn('My bookings snapshot error:', err.message))
     return unsub
   }, [currentUser])
 
@@ -70,7 +76,12 @@ export default function Dashboard() {
       {/* Equipment selector */}
       <div className="mb-6">
         <h1 className="text-xl font-bold text-gray-800 mb-3">Equipment Booking</h1>
-        {equipment.length === 0 ? (
+        {dbError ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+            Could not connect to database. Please refresh the page.
+            <button onClick={() => window.location.reload()} className="ml-3 underline">Retry</button>
+          </div>
+        ) : equipment.length === 0 ? (
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm rounded-lg px-4 py-3">
             No equipment found. An admin needs to add equipment first.
           </div>
