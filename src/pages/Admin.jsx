@@ -40,9 +40,9 @@ function EquipmentManager() {
 
   useEffect(() => {
     const unsub = onValue(ref(db, 'equipment'), (snap) => {
-      const list = []
-      snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
-      setEquipment(list)
+      const val = snap.val()
+      if (!val) { setEquipment([]); return }
+      setEquipment(Object.entries(val).map(([key, data]) => ({ id: key, ...data })))
     })
     return unsub
   }, [])
@@ -182,8 +182,9 @@ function BookingsManager() {
 
   useEffect(() => {
     const unsub = onValue(ref(db, 'bookings'), (snap) => {
-      const list = []
-      snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
+      const val = snap.val()
+      if (!val) { setBookings([]); return }
+      const list = Object.entries(val).map(([key, data]) => ({ id: key, ...data }))
       list.sort((a, b) => b.date.localeCompare(a.date))
       setBookings(list)
     })
@@ -252,11 +253,9 @@ function UsersManager() {
 
   useEffect(() => {
     const unsub = onValue(ref(db, 'users'), (snap) => {
-      console.log('users raw:', JSON.stringify(snap.val()))
-      const list = []
-      snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
-      console.log('users list:', list.length, list.map(u => u.email))
-      setUsers(list)
+      const val = snap.val()
+      if (!val) { setUsers([]); return }
+      setUsers(Object.entries(val).map(([key, data]) => ({ id: key, ...data })))
     })
     return unsub
   }, [])

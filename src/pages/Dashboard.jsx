@@ -38,9 +38,8 @@ export default function Dashboard() {
     if (!selectedEquipment) return
     const q = query(ref(db, 'bookings'), orderByChild('equipmentId'), equalTo(selectedEquipment.id))
     const unsub = onValue(q, (snap) => {
-      const list = []
-      snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
-      setBookings(list)
+      const val = snap.val()
+      setBookings(val ? Object.entries(val).map(([key, data]) => ({ id: key, ...data })) : [])
     })
     return unsub
   }, [selectedEquipment])
@@ -49,8 +48,8 @@ export default function Dashboard() {
     if (!currentUser) return
     const q = query(ref(db, 'bookings'), orderByChild('userId'), equalTo(currentUser.uid))
     const unsub = onValue(q, (snap) => {
-      const list = []
-      snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
+      const val = snap.val()
+      const list = val ? Object.entries(val).map(([key, data]) => ({ id: key, ...data })) : []
       list.sort((a, b) => b.date.localeCompare(a.date))
       setMyBookings(list)
     })
