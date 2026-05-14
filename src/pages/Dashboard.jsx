@@ -21,18 +21,25 @@ export default function Dashboard() {
   const [dbError, setDbError] = useState(false)
 
   useEffect(() => {
-    async function loadEquipment() {
+    let cancelled = false
+    async function loadEquipment(attempt = 0) {
       try {
         const snap = await getDocs(query(collection(db, 'equipment'), where('available', '==', true)))
+        if (cancelled) return
         const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
         setEquipment(list)
         if (list.length > 0) setSelectedEquipment(list[0])
       } catch (err) {
-        console.warn('Failed to load equipment:', err.message)
-        setDbError(true)
+        if (cancelled) return
+        if (attempt < 4) {
+          setTimeout(() => loadEquipment(attempt + 1), 1500)
+        } else {
+          setDbError(true)
+        }
       }
     }
     loadEquipment()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
