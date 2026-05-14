@@ -7,7 +7,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { doc, setDoc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 
 const AuthContext = createContext()
@@ -46,32 +46,34 @@ export function AuthProvider({ children }) {
     return sendPasswordResetEmail(auth, email)
   }
 
-  async function fetchProfile(uid) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const snap = await getDoc(doc(db, 'users', uid))
-        if (snap.exists()) {
-          setUserProfile(snap.data())
-          return
+  function listenToProfile(uid, delay = 0) {
+    const timer = setTimeout(() => {
+      const unsub = onSnapshot(
+        doc(db, 'users', uid),
+        (snap) => { if (snap.exists()) setUserProfile(snap.data()) },
+        (err) => {
+          console.warn('Profile error, retrying in 2s:', err.message)
+          unsub()
+          listenToProfile(uid, 2000)
         }
-      } catch (err) {
-        console.warn(`Profile fetch attempt ${attempt + 1} failed:`, err.message)
-        if (attempt < 2) await new Promise(r => setTimeout(r, 1500))
-      }
-    }
+      )
+    }, delay)
+    return timer
   }
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    let timer = null
+    const authUnsub = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user)
       setLoading(false)
+      if (timer) clearTimeout(timer)
       if (user) {
-        fetchProfile(user.uid)
+        timer = listenToProfile(user.uid, 800)
       } else {
         setUserProfile(null)
       }
     })
-    return unsub
+    return () => { authUnsub(); if (timer) clearTimeout(timer) }
   }, [])
 
   const value = {
