@@ -36,7 +36,20 @@ export function AuthProvider({ children }) {
       if (profileUnsub) { profileUnsub(); profileUnsub = null }
       if (user) {
         profileUnsub = onValue(ref(db, `users/${user.uid}`), (snap) => {
-          if (snap.exists()) setUserProfile(snap.val())
+          if (snap.exists()) {
+            setUserProfile(snap.val())
+          } else {
+            // Profile missing from RTDB (account created before migration) — write it now
+            const profile = {
+              uid: user.uid,
+              email: user.email,
+              name: user.displayName || user.email,
+              role: 'user',
+              createdAt: new Date().toISOString(),
+            }
+            set(ref(db, `users/${user.uid}`), profile)
+            setUserProfile(profile)
+          }
         })
       } else {
         setUserProfile(null)
