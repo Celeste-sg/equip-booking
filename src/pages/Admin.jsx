@@ -49,15 +49,20 @@ function EquipmentManager() {
     e.preventDefault()
     if (!name.trim()) return
     setLoading(true)
-    await addDoc(collection(db, 'equipment'), {
-      name: name.trim(),
-      description: description.trim(),
-      available: true,
-      createdAt: new Date().toISOString(),
-    })
-    setName('')
-    setDescription('')
-    setLoading(false)
+    try {
+      await addDoc(collection(db, 'equipment'), {
+        name: name.trim(),
+        description: description.trim(),
+        available: true,
+        createdAt: new Date().toISOString(),
+      })
+      setName('')
+      setDescription('')
+    } catch (err) {
+      alert('Failed to add equipment: ' + err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function toggleAvailable(eq) {
