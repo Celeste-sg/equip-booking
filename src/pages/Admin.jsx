@@ -1,51 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  collection, doc, updateDoc, deleteDoc,
-  query, orderBy, onSnapshot, where,
+  collection, addDoc, doc, updateDoc, deleteDoc,
+  query, orderBy, onSnapshot,
 } from 'firebase/firestore'
 import { db } from '../firebase'
-import { getAuth } from 'firebase/auth'
-
-const PID = import.meta.env.VITE_FIREBASE_PROJECT_ID
-const API_KEY = import.meta.env.VITE_FIREBASE_API_KEY
-const FS_BASE = `https://firestore.googleapis.com/v1/projects/${PID}/databases/(default)/documents`
-
-async function getToken() {
-  return getAuth().currentUser.getIdToken(false)
-}
-
-async function fsGet(path) {
-  const token = await getToken()
-  const res = await fetch(`${FS_BASE}/${path}`, { headers: { Authorization: `Bearer ${token}` } })
-  return res.json()
-}
-
-async function fsPost(col, fields) {
-  const token = await getToken()
-  const res = await fetch(`${FS_BASE}/${col}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ fields }),
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
-
-async function fsPatch(path, fields) {
-  const token = await getToken()
-  const updateMask = Object.keys(fields).map(k => `updateMask.fieldPaths=${k}`).join('&')
-  const res = await fetch(`${FS_BASE}/${path}?${updateMask}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ fields }),
-  })
-  if (!res.ok) throw new Error(await res.text())
-}
-
-async function fsDelete(path) {
-  const token = await getToken()
-  await fetch(`${FS_BASE}/${path}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-}
 import { format, parseISO } from 'date-fns'
 
 export default function Admin() {
@@ -84,38 +42,19 @@ function EquipmentManager() {
   const descRef = useRef()
 
   useEffect(() => {
-    async function fetchEquipment() {
-      try {
-        const json = await fsGet('equipment')
-        const list = (json.documents || []).map(d => ({
-          id: d.name.split('/').pop(),
-          name: d.fields?.name?.stringValue || '',
-          description: d.fields?.description?.stringValue || '',
-          available: d.fields?.available?.booleanValue ?? true,
-        }))
-        setEquipment(list)
-      } catch (err) {
-        console.warn('Failed to load equipment:', err.message)
-      }
-    }
-    fetchEquipment()
+    const unsub = onSnapshot(collection(db, 'equipment'), (snap) => {
+      setEquipment(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    }, (err) => console.warn('equipment error:', err.message))
+    return unsub
   }, [])
 
   async function addEquipmentDoc(name, description = '') {
-    await fsPost('equipment', {
-      name: { stringValue: name.trim() },
-      description: { stringValue: description.trim() },
-      available: { booleanValue: true },
-      createdAt: { stringValue: new Date().toISOString() },
+    await addDoc(collection(db, 'equipment'), {
+      name: name.trim(),
+      description: description.trim(),
+      available: true,
+      createdAt: new Date().toISOString(),
     })
-    // Reload list after add
-    const json = await fsGet('equipment')
-    setEquipment((json.documents || []).map(d => ({
-      id: d.name.split('/').pop(),
-      name: d.fields?.name?.stringValue || '',
-      description: d.fields?.description?.stringValue || '',
-      available: d.fields?.available?.booleanValue ?? true,
-    })))
   }
 
   async function handleAdd(e) {
@@ -149,14 +88,20 @@ function EquipmentManager() {
   }
 
   async function toggleAvailable(eq) {
-    await fsPatch(`equipment/${eq.id}`, { available: { booleanValue: !eq.available } })
-    setEquipment(prev => prev.map(e => e.id === eq.id ? { ...e, available: !e.available } : e))
+    try {
+      await updateDoc(doc(db, 'equipment', eq.id), { available: !eq.available })
+    } catch (err) {
+      alert('Failed: ' + err.message)
+    }
   }
 
   async function handleDelete(eq) {
     if (!confirm(`Delete "${eq.name}"? This won't delete existing bookings.`)) return
-    await fsDelete(`equipment/${eq.id}`)
-    setEquipment(prev => prev.filter(e => e.id !== eq.id))
+    try {
+      await deleteDoc(doc(db, 'equipment', eq.id))
+    } catch (err) {
+      alert('Failed: ' + err.message)
+    }
   }
 
   return (
@@ -239,7 +184,7 @@ function BookingsManager() {
     const q = query(collection(db, 'bookings'), orderBy('date', 'desc'))
     const unsub = onSnapshot(q, (snap) => {
       setBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    })
+    }, (err) => console.warn('bookings error:', err.message))
     return unsub
   }, [])
 
@@ -306,7 +251,7 @@ function UsersManager() {
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
       setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    })
+    }, (err) => console.warn('users error:', err.message))
     return unsub
   }, [])
 
