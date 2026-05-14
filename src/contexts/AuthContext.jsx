@@ -7,7 +7,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth'
-import { doc, setDoc, onSnapshot } from 'firebase/firestore'
+import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 
 const AuthContext = createContext()
@@ -46,31 +46,32 @@ export function AuthProvider({ children }) {
     return sendPasswordResetEmail(auth, email)
   }
 
+  async function fetchProfile(uid) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid))
+        if (snap.exists()) {
+          setUserProfile(snap.data())
+          return
+        }
+      } catch (err) {
+        console.warn(`Profile fetch attempt ${attempt + 1} failed:`, err.message)
+        if (attempt < 2) await new Promise(r => setTimeout(r, 1500))
+      }
+    }
+  }
+
   useEffect(() => {
-    let profileUnsub = null
-
-    const authUnsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user)
-      setLoading(false) // show UI immediately, don't wait for profile
-
-      if (profileUnsub) { profileUnsub(); profileUnsub = null }
-
+      setLoading(false)
       if (user) {
-        // listen in real-time so role changes reflect instantly
-        profileUnsub = onSnapshot(
-          doc(db, 'users', user.uid),
-          (snap) => { if (snap.exists()) setUserProfile(snap.data()) },
-          (err) => console.warn('Profile listen error:', err.message)
-        )
+        fetchProfile(user.uid)
       } else {
         setUserProfile(null)
       }
     })
-
-    return () => {
-      authUnsub()
-      if (profileUnsub) profileUnsub()
-    }
+    return unsub
   }, [])
 
   const value = {
