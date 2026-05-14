@@ -252,8 +252,10 @@ function UsersManager() {
 
   useEffect(() => {
     const unsub = onValue(ref(db, 'users'), (snap) => {
+      console.log('users raw:', JSON.stringify(snap.val()))
       const list = []
       snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
+      console.log('users list:', list.length, list.map(u => u.email))
       setUsers(list)
     })
     return unsub
