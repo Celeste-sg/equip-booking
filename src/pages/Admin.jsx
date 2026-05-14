@@ -10,9 +10,19 @@ const PID = import.meta.env.VITE_FIREBASE_PROJECT_ID
 const API_KEY = import.meta.env.VITE_FIREBASE_API_KEY
 const FS_BASE = `https://firestore.googleapis.com/v1/projects/${PID}/databases/(default)/documents`
 
-async function fsPost(collection, fields) {
-  const token = await getAuth().currentUser.getIdToken()
-  const res = await fetch(`${FS_BASE}/${collection}?key=${API_KEY}`, {
+async function getToken() {
+  return getAuth().currentUser.getIdToken(false)
+}
+
+async function fsGet(path) {
+  const token = await getToken()
+  const res = await fetch(`${FS_BASE}/${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  return res.json()
+}
+
+async function fsPost(col, fields) {
+  const token = await getToken()
+  const res = await fetch(`${FS_BASE}/${col}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ fields }),
@@ -22,9 +32,9 @@ async function fsPost(collection, fields) {
 }
 
 async function fsPatch(path, fields) {
-  const token = await getAuth().currentUser.getIdToken()
+  const token = await getToken()
   const updateMask = Object.keys(fields).map(k => `updateMask.fieldPaths=${k}`).join('&')
-  const res = await fetch(`${FS_BASE}/${path}?${updateMask}&key=${API_KEY}`, {
+  const res = await fetch(`${FS_BASE}/${path}?${updateMask}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ fields }),
@@ -33,11 +43,8 @@ async function fsPatch(path, fields) {
 }
 
 async function fsDelete(path) {
-  const token = await getAuth().currentUser.getIdToken()
-  await fetch(`${FS_BASE}/${path}?key=${API_KEY}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
-  })
+  const token = await getToken()
+  await fetch(`${FS_BASE}/${path}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
 }
 import { format, parseISO } from 'date-fns'
 
@@ -79,8 +86,7 @@ function EquipmentManager() {
   useEffect(() => {
     async function fetchEquipment() {
       try {
-        const res = await fetch(`${FS_BASE}/equipment?key=${API_KEY}`)
-        const json = await res.json()
+        const json = await fsGet('equipment')
         const list = (json.documents || []).map(d => ({
           id: d.name.split('/').pop(),
           name: d.fields?.name?.stringValue || '',
@@ -103,8 +109,7 @@ function EquipmentManager() {
       createdAt: { stringValue: new Date().toISOString() },
     })
     // Reload list after add
-    const res = await fetch(`${FS_BASE}/equipment?key=${API_KEY}`)
-    const json = await res.json()
+    const json = await fsGet('equipment')
     setEquipment((json.documents || []).map(d => ({
       id: d.name.split('/').pop(),
       name: d.fields?.name?.stringValue || '',
