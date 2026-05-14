@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   collection, getDocs, addDoc, doc, updateDoc, deleteDoc,
   query, orderBy, onSnapshot, where,
@@ -32,36 +32,58 @@ export default function Admin() {
   )
 }
 
+const DEFAULT_EQUIPMENT = ['冻干机', '高压均质机', '微射流', '流化床']
+
 function EquipmentManager() {
   const [equipment, setEquipment] = useState([])
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
+  const [seeding, setSeeding] = useState(false)
+  const nameRef = useRef()
+  const descRef = useRef()
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'equipment'), (snap) => {
       setEquipment(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    })
+    }, (err) => console.warn('equipment snapshot error:', err.message))
     return unsub
   }, [])
 
+  async function addEquipmentDoc(name, description = '') {
+    await addDoc(collection(db, 'equipment'), {
+      name: name.trim(),
+      description: description.trim(),
+      available: true,
+      createdAt: new Date().toISOString(),
+    })
+  }
+
   async function handleAdd(e) {
     e.preventDefault()
-    if (!name.trim()) return
+    const nameVal = nameRef.current?.value?.trim()
+    if (!nameVal) return
     setLoading(true)
     try {
-      await addDoc(collection(db, 'equipment'), {
-        name: name.trim(),
-        description: description.trim(),
-        available: true,
-        createdAt: new Date().toISOString(),
-      })
-      setName('')
-      setDescription('')
+      await addEquipmentDoc(nameVal, descRef.current?.value || '')
+      nameRef.current.value = ''
+      if (descRef.current) descRef.current.value = ''
     } catch (err) {
       alert('Failed to add equipment: ' + err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleSeedDefaults() {
+    setSeeding(true)
+    try {
+      const existing = equipment.map(e => e.name)
+      for (const name of DEFAULT_EQUIPMENT) {
+        if (!existing.includes(name)) await addEquipmentDoc(name)
+      }
+    } catch (err) {
+      alert('Failed: ' + err.message)
+    } finally {
+      setSeeding(false)
     }
   }
 
@@ -80,26 +102,34 @@ function EquipmentManager() {
         <h3 className="font-medium text-gray-800 mb-4">Add Equipment</h3>
         <div className="space-y-3">
           <input
+            ref={nameRef}
             type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Equipment name (e.g. Centrifuge A)"
+            placeholder="Equipment name"
             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
+            ref={descRef}
             type="text"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
             placeholder="Description (optional)"
             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button
-            type="submit"
-            disabled={loading || !name.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
-          >
-            Add Equipment
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+            >
+              {loading ? 'Adding...' : 'Add Equipment'}
+            </button>
+            <button
+              type="button"
+              onClick={handleSeedDefaults}
+              disabled={seeding}
+              className="border border-blue-300 text-blue-600 hover:bg-blue-50 disabled:opacity-50 text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+            >
+              {seeding ? 'Importing...' : '一键导入预设设备'}
+            </button>
+          </div>
         </div>
       </form>
 
