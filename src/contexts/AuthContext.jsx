@@ -7,7 +7,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { doc, setDoc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 
 const AuthContext = createContext()
@@ -46,28 +46,31 @@ export function AuthProvider({ children }) {
     return sendPasswordResetEmail(auth, email)
   }
 
-  async function fetchUserProfile(uid) {
-    try {
-      const snap = await getDoc(doc(db, 'users', uid))
-      if (snap.exists()) {
-        setUserProfile(snap.data())
-      }
-    } catch (err) {
-      console.warn('Could not fetch user profile:', err.message)
-    }
-  }
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let profileUnsub = null
+
+    const authUnsub = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user)
+      setLoading(false) // show UI immediately, don't wait for profile
+
+      if (profileUnsub) { profileUnsub(); profileUnsub = null }
+
       if (user) {
-        await fetchUserProfile(user.uid)
+        // listen in real-time so role changes reflect instantly
+        profileUnsub = onSnapshot(
+          doc(db, 'users', user.uid),
+          (snap) => { if (snap.exists()) setUserProfile(snap.data()) },
+          (err) => console.warn('Profile listen error:', err.message)
+        )
       } else {
         setUserProfile(null)
       }
-      setLoading(false)
     })
-    return unsubscribe
+
+    return () => {
+      authUnsub()
+      if (profileUnsub) profileUnsub()
+    }
   }, [])
 
   const value = {
@@ -78,7 +81,6 @@ export function AuthProvider({ children }) {
     login,
     logout,
     resetPassword,
-    refreshProfile: () => currentUser && fetchUserProfile(currentUser.uid),
   }
 
   return (
