@@ -1,9 +1,44 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  collection, getDocs, addDoc, doc, updateDoc, deleteDoc,
+  collection, doc, updateDoc, deleteDoc,
   query, orderBy, onSnapshot, where,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { getAuth } from 'firebase/auth'
+
+const PID = import.meta.env.VITE_FIREBASE_PROJECT_ID
+const API_KEY = import.meta.env.VITE_FIREBASE_API_KEY
+const FS_BASE = `https://firestore.googleapis.com/v1/projects/${PID}/databases/(default)/documents`
+
+async function fsPost(collection, fields) {
+  const token = await getAuth().currentUser.getIdToken()
+  const res = await fetch(`${FS_BASE}/${collection}?key=${API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+async function fsPatch(path, fields) {
+  const token = await getAuth().currentUser.getIdToken()
+  const updateMask = Object.keys(fields).map(k => `updateMask.fieldPaths=${k}`).join('&')
+  const res = await fetch(`${FS_BASE}/${path}?${updateMask}&key=${API_KEY}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+}
+
+async function fsDelete(path) {
+  const token = await getAuth().currentUser.getIdToken()
+  await fetch(`${FS_BASE}/${path}?key=${API_KEY}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
 import { format, parseISO } from 'date-fns'
 
 export default function Admin() {
@@ -42,19 +77,40 @@ function EquipmentManager() {
   const descRef = useRef()
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'equipment'), (snap) => {
-      setEquipment(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    }, (err) => console.warn('equipment snapshot error:', err.message))
-    return unsub
+    async function fetchEquipment() {
+      try {
+        const res = await fetch(`${FS_BASE}/equipment?key=${API_KEY}`)
+        const json = await res.json()
+        const list = (json.documents || []).map(d => ({
+          id: d.name.split('/').pop(),
+          name: d.fields?.name?.stringValue || '',
+          description: d.fields?.description?.stringValue || '',
+          available: d.fields?.available?.booleanValue ?? true,
+        }))
+        setEquipment(list)
+      } catch (err) {
+        console.warn('Failed to load equipment:', err.message)
+      }
+    }
+    fetchEquipment()
   }, [])
 
   async function addEquipmentDoc(name, description = '') {
-    await addDoc(collection(db, 'equipment'), {
-      name: name.trim(),
-      description: description.trim(),
-      available: true,
-      createdAt: new Date().toISOString(),
+    await fsPost('equipment', {
+      name: { stringValue: name.trim() },
+      description: { stringValue: description.trim() },
+      available: { booleanValue: true },
+      createdAt: { stringValue: new Date().toISOString() },
     })
+    // Reload list after add
+    const res = await fetch(`${FS_BASE}/equipment?key=${API_KEY}`)
+    const json = await res.json()
+    setEquipment((json.documents || []).map(d => ({
+      id: d.name.split('/').pop(),
+      name: d.fields?.name?.stringValue || '',
+      description: d.fields?.description?.stringValue || '',
+      available: d.fields?.available?.booleanValue ?? true,
+    })))
   }
 
   async function handleAdd(e) {
@@ -88,12 +144,14 @@ function EquipmentManager() {
   }
 
   async function toggleAvailable(eq) {
-    await updateDoc(doc(db, 'equipment', eq.id), { available: !eq.available })
+    await fsPatch(`equipment/${eq.id}`, { available: { booleanValue: !eq.available } })
+    setEquipment(prev => prev.map(e => e.id === eq.id ? { ...e, available: !e.available } : e))
   }
 
   async function handleDelete(eq) {
     if (!confirm(`Delete "${eq.name}"? This won't delete existing bookings.`)) return
-    await deleteDoc(doc(db, 'equipment', eq.id))
+    await fsDelete(`equipment/${eq.id}`)
+    setEquipment(prev => prev.filter(e => e.id !== eq.id))
   }
 
   return (
