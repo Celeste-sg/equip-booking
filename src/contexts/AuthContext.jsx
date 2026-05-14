@@ -47,9 +47,13 @@ export function AuthProvider({ children }) {
   }
 
   async function fetchUserProfile(uid) {
-    const snap = await getDoc(doc(db, 'users', uid))
-    if (snap.exists()) {
-      setUserProfile(snap.data())
+    try {
+      const snap = await getDoc(doc(db, 'users', uid))
+      if (snap.exists()) {
+        setUserProfile(snap.data())
+      }
+    } catch (err) {
+      console.warn('Could not fetch user profile:', err.message)
     }
   }
 
