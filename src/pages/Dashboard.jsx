@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore'
+import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database'
 import { db } from '../firebase'
 import WeekCalendar from '../components/WeekCalendar'
 import BookingModal from '../components/BookingModal'
@@ -17,53 +17,48 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [myBookings, setMyBookings] = useState([])
-  const [tab, setTab] = useState('calendar') // 'calendar' | 'mine'
-  const [dbError, setDbError] = useState(false)
+  const [tab, setTab] = useState('calendar')
   const [loadingEquipment, setLoadingEquipment] = useState(true)
 
   useEffect(() => {
-    const q = query(collection(db, 'equipment'), where('available', '==', true))
-    const unsub = onSnapshot(q, (snap) => {
-      if (snap.metadata.fromCache && snap.docs.length === 0) return
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const unsub = onValue(ref(db, 'equipment'), (snap) => {
+      const list = []
+      snap.forEach((child) => {
+        const d = child.val()
+        if (d.available) list.push({ id: child.key, ...d })
+      })
       setEquipment(list)
       setSelectedEquipment(prev => prev ?? (list[0] || null))
       setLoadingEquipment(false)
-    }, () => setLoadingEquipment(false))
+    })
     return unsub
   }, [])
 
   useEffect(() => {
     if (!selectedEquipment) return
-    const q = query(collection(db, 'bookings'), where('equipmentId', '==', selectedEquipment.id))
-    const unsub = onSnapshot(q, (snap) => {
-      setBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    }, (err) => console.warn('Bookings snapshot error:', err.message))
+    const q = query(ref(db, 'bookings'), orderByChild('equipmentId'), equalTo(selectedEquipment.id))
+    const unsub = onValue(q, (snap) => {
+      const list = []
+      snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
+      setBookings(list)
+    })
     return unsub
   }, [selectedEquipment])
 
   useEffect(() => {
     if (!currentUser) return
-    const q = query(
-      collection(db, 'bookings'),
-      where('userId', '==', currentUser.uid),
-      orderBy('date', 'desc')
-    )
-    const unsub = onSnapshot(q, (snap) => {
-      setMyBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    }, (err) => console.warn('My bookings snapshot error:', err.message))
+    const q = query(ref(db, 'bookings'), orderByChild('userId'), equalTo(currentUser.uid))
+    const unsub = onValue(q, (snap) => {
+      const list = []
+      snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
+      list.sort((a, b) => b.date.localeCompare(a.date))
+      setMyBookings(list)
+    })
     return unsub
   }, [currentUser])
 
-  function handleSlotClick(day) {
-    setSelectedDate(day)
-    setShowBookingModal(true)
-  }
-
-  function handleBookingClick(booking) {
-    setSelectedBooking(booking)
-    setShowDetailModal(true)
-  }
+  function handleSlotClick(day) { setSelectedDate(day); setShowBookingModal(true) }
+  function handleBookingClick(booking) { setSelectedBooking(booking); setShowDetailModal(true) }
 
   const upcomingMine = myBookings.filter(
     (b) => b.status !== 'cancelled' && isFuture(parseISO(`${b.date}T${b.endTime}`))
@@ -71,15 +66,9 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
-      {/* Equipment selector */}
       <div className="mb-6">
         <h1 className="text-xl font-bold text-gray-800 mb-3">Equipment Booking</h1>
-        {dbError ? (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
-            Could not connect to database.
-            <button onClick={() => window.location.reload()} className="ml-3 underline">Retry</button>
-          </div>
-        ) : loadingEquipment ? (
+        {loadingEquipment ? (
           <div className="text-sm text-gray-400 animate-pulse">Loading equipment...</div>
         ) : equipment.length === 0 ? (
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm rounded-lg px-4 py-3">
@@ -136,36 +125,18 @@ export default function Dashboard() {
           </div>
 
           {tab === 'calendar' ? (
-            <WeekCalendar
-              bookings={bookings}
-              equipment={selectedEquipment}
-              onSlotClick={handleSlotClick}
-              onBookingClick={handleBookingClick}
-            />
+            <WeekCalendar bookings={bookings} equipment={selectedEquipment} onSlotClick={handleSlotClick} onBookingClick={handleBookingClick} />
           ) : (
-            <MyBookingsList
-              bookings={myBookings}
-              onBookingClick={handleBookingClick}
-            />
+            <MyBookingsList bookings={myBookings} onBookingClick={handleBookingClick} />
           )}
         </>
       )}
 
       {showBookingModal && selectedEquipment && (
-        <BookingModal
-          equipment={selectedEquipment}
-          selectedDate={selectedDate}
-          onClose={() => setShowBookingModal(false)}
-          onSuccess={() => setShowBookingModal(false)}
-        />
+        <BookingModal equipment={selectedEquipment} selectedDate={selectedDate} onClose={() => setShowBookingModal(false)} onSuccess={() => setShowBookingModal(false)} />
       )}
-
       {showDetailModal && selectedBooking && (
-        <BookingDetailModal
-          booking={selectedBooking}
-          onClose={() => setShowDetailModal(false)}
-          onCancelled={() => setShowDetailModal(false)}
-        />
+        <BookingDetailModal booking={selectedBooking} onClose={() => setShowDetailModal(false)} onCancelled={() => setShowDetailModal(false)} />
       )}
     </div>
   )
@@ -173,34 +144,18 @@ export default function Dashboard() {
 
 function MyBookingsList({ bookings, onBookingClick }) {
   if (bookings.length === 0) {
-    return (
-      <div className="text-center py-12 text-gray-500">
-        <div className="text-4xl mb-3">📅</div>
-        <p>No bookings yet</p>
-      </div>
-    )
+    return <div className="text-center py-12 text-gray-500"><div className="text-4xl mb-3">📅</div><p>No bookings yet</p></div>
   }
-
   return (
     <div className="space-y-2">
       {bookings.map((b) => (
-        <div
-          key={b.id}
-          onClick={() => onBookingClick(b)}
-          className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
-        >
+        <div key={b.id} onClick={() => onBookingClick(b)} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all">
           <div>
             <div className="font-medium text-gray-800 text-sm">{b.equipmentName}</div>
-            <div className="text-xs text-gray-500 mt-0.5">
-              {format(parseISO(b.date), 'EEE, MMM d')} · {b.startTime}–{b.endTime}
-            </div>
+            <div className="text-xs text-gray-500 mt-0.5">{format(parseISO(b.date), 'EEE, MMM d')} · {b.startTime}–{b.endTime}</div>
             {b.purpose && <div className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{b.purpose}</div>}
           </div>
-          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-            b.status === 'confirmed'
-              ? 'bg-green-100 text-green-700'
-              : 'bg-red-100 text-red-600'
-          }`}>
+          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${b.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
             {b.status}
           </span>
         </div>

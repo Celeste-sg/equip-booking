@@ -1,4 +1,4 @@
-import { doc, updateDoc } from 'firebase/firestore'
+import { ref, update } from 'firebase/database'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { format, parseISO } from 'date-fns'
@@ -9,7 +9,7 @@ export default function BookingDetailModal({ booking, onClose, onCancelled }) {
 
   async function handleCancel() {
     if (!confirm('Cancel this booking?')) return
-    await updateDoc(doc(db, 'bookings', booking.id), { status: 'cancelled' })
+    await update(ref(db, `bookings/${booking.id}`), { status: 'cancelled' })
     onCancelled()
     onClose()
   }

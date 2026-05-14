@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import {
-  collection, addDoc, doc, updateDoc, deleteDoc,
-  query, orderBy, onSnapshot,
-} from 'firebase/firestore'
+import { ref, push, update, remove, onValue, set } from 'firebase/database'
 import { db } from '../firebase'
 import { format, parseISO } from 'date-fns'
 
@@ -42,14 +39,17 @@ function EquipmentManager() {
   const descRef = useRef()
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'equipment'), (snap) => {
-      setEquipment(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    }, (err) => console.warn('equipment error:', err.message))
+    const unsub = onValue(ref(db, 'equipment'), (snap) => {
+      const list = []
+      snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
+      setEquipment(list)
+    })
     return unsub
   }, [])
 
-  async function addEquipmentDoc(name, description = '') {
-    await addDoc(collection(db, 'equipment'), {
+  async function addEquipmentItem(name, description = '') {
+    const newRef = push(ref(db, 'equipment'))
+    await set(newRef, {
       name: name.trim(),
       description: description.trim(),
       available: true,
@@ -63,7 +63,7 @@ function EquipmentManager() {
     if (!nameVal) return
     setLoading(true)
     try {
-      await addEquipmentDoc(nameVal, descRef.current?.value || '')
+      await addEquipmentItem(nameVal, descRef.current?.value || '')
       nameRef.current.value = ''
       if (descRef.current) descRef.current.value = ''
     } catch (err) {
@@ -76,9 +76,9 @@ function EquipmentManager() {
   async function handleSeedDefaults() {
     setSeeding(true)
     try {
-      const existing = equipment.map(e => e.name)
+      const existing = equipment.map((e) => e.name)
       for (const name of DEFAULT_EQUIPMENT) {
-        if (!existing.includes(name)) await addEquipmentDoc(name)
+        if (!existing.includes(name)) await addEquipmentItem(name)
       }
     } catch (err) {
       alert('Failed: ' + err.message)
@@ -89,7 +89,7 @@ function EquipmentManager() {
 
   async function toggleAvailable(eq) {
     try {
-      await updateDoc(doc(db, 'equipment', eq.id), { available: !eq.available })
+      await update(ref(db, `equipment/${eq.id}`), { available: !eq.available })
     } catch (err) {
       alert('Failed: ' + err.message)
     }
@@ -98,7 +98,7 @@ function EquipmentManager() {
   async function handleDelete(eq) {
     if (!confirm(`Delete "${eq.name}"? This won't delete existing bookings.`)) return
     try {
-      await deleteDoc(doc(db, 'equipment', eq.id))
+      await remove(ref(db, `equipment/${eq.id}`))
     } catch (err) {
       alert('Failed: ' + err.message)
     }
@@ -181,16 +181,18 @@ function BookingsManager() {
   const [filter, setFilter] = useState('all')
 
   useEffect(() => {
-    const q = query(collection(db, 'bookings'), orderBy('date', 'desc'))
-    const unsub = onSnapshot(q, (snap) => {
-      setBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    }, (err) => console.warn('bookings error:', err.message))
+    const unsub = onValue(ref(db, 'bookings'), (snap) => {
+      const list = []
+      snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
+      list.sort((a, b) => b.date.localeCompare(a.date))
+      setBookings(list)
+    })
     return unsub
   }, [])
 
   async function handleCancel(booking) {
     if (!confirm('Cancel this booking?')) return
-    await updateDoc(doc(db, 'bookings', booking.id), { status: 'cancelled' })
+    await update(ref(db, `bookings/${booking.id}`), { status: 'cancelled' })
   }
 
   const filtered = filter === 'all' ? bookings : bookings.filter((b) => b.status === filter)
@@ -249,9 +251,11 @@ function UsersManager() {
   const [users, setUsers] = useState([])
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'users'), (snap) => {
-      setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    }, (err) => console.warn('users error:', err.message))
+    const unsub = onValue(ref(db, 'users'), (snap) => {
+      const list = []
+      snap.forEach((child) => list.push({ id: child.key, ...child.val() }))
+      setUsers(list)
+    })
     return unsub
   }, [])
 
@@ -261,7 +265,7 @@ function UsersManager() {
       newRole === 'admin' &&
       !confirm(`Make ${user.name} an admin? They can manage all equipment and bookings.`)
     ) return
-    await updateDoc(doc(db, 'users', user.id), { role: newRole })
+    await update(ref(db, `users/${user.id}`), { role: newRole })
   }
 
   return (

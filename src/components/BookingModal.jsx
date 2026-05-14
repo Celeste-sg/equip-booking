@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
+import { ref, push, set, query, orderByChild, equalTo, get } from 'firebase/database'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { format, parseISO, isAfter, isBefore, areIntervalsOverlapping } from 'date-fns'
@@ -21,20 +21,16 @@ export default function BookingModal({ equipment, selectedDate, onClose, onSucce
   const [loading, setLoading] = useState(false)
 
   async function checkConflict(start, end) {
-    const q = query(
-      collection(db, 'bookings'),
-      where('equipmentId', '==', equipment.id),
-      where('date', '==', date),
-      where('status', '!=', 'cancelled')
-    )
-    const snap = await getDocs(q)
-    for (const docSnap of snap.docs) {
-      const b = docSnap.data()
+    const q = query(ref(db, 'bookings'), orderByChild('equipmentId'), equalTo(equipment.id))
+    const snap = await get(q)
+    if (!snap.exists()) return { conflict: false }
+    for (const child of Object.values(snap.val())) {
+      if (child.date !== date || child.status === 'cancelled') continue
       const overlap = areIntervalsOverlapping(
         { start, end },
-        { start: parseISO(`${date}T${b.startTime}`), end: parseISO(`${date}T${b.endTime}`) }
+        { start: parseISO(`${date}T${child.startTime}`), end: parseISO(`${date}T${child.endTime}`) }
       )
-      if (overlap) return { conflict: true, booking: b }
+      if (overlap) return { conflict: true, booking: child }
     }
     return { conflict: false }
   }
@@ -46,24 +42,20 @@ export default function BookingModal({ equipment, selectedDate, onClose, onSucce
     const start = parseISO(`${date}T${startTime}`)
     const end = parseISO(`${date}T${endTime}`)
 
-    if (!isAfter(end, start)) {
-      return setError('End time must be after start time.')
-    }
-    if (isBefore(start, new Date())) {
-      return setError('Cannot book in the past.')
-    }
+    if (!isAfter(end, start)) return setError('End time must be after start time.')
+    if (isBefore(start, new Date())) return setError('Cannot book in the past.')
 
     setLoading(true)
 
-    const { conflict, booking } = await checkConflict(start, end)
-    if (conflict) {
-      setError(`Conflict with existing booking by ${booking.userName} (${booking.startTime}–${booking.endTime}).`)
-      setLoading(false)
-      return
-    }
-
     try {
-      await addDoc(collection(db, 'bookings'), {
+      const { conflict, booking } = await checkConflict(start, end)
+      if (conflict) {
+        setError(`Conflict with existing booking by ${booking.userName} (${booking.startTime}–${booking.endTime}).`)
+        return
+      }
+
+      const newRef = push(ref(db, 'bookings'))
+      await set(newRef, {
         equipmentId: equipment.id,
         equipmentName: equipment.name,
         userId: currentUser.uid,
@@ -77,7 +69,6 @@ export default function BookingModal({ equipment, selectedDate, onClose, onSucce
         createdAt: new Date().toISOString(),
       })
 
-      // Send email notification if EmailJS is configured
       if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY) {
         emailjs.send(
           EMAILJS_SERVICE_ID,
@@ -91,14 +82,15 @@ export default function BookingModal({ equipment, selectedDate, onClose, onSucce
             purpose: purpose || '—',
           },
           EMAILJS_PUBLIC_KEY
-        ).catch(() => {}) // silently fail if email not configured
+        ).catch(() => {})
       }
 
       onSuccess()
     } catch {
       setError('Failed to create booking. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
