@@ -22,15 +22,27 @@ export default function Dashboard() {
   const [loadingEquipment, setLoadingEquipment] = useState(true)
 
   useEffect(() => {
+    // Show localStorage cache immediately while waiting for Firestore
+    try {
+      const cached = JSON.parse(localStorage.getItem('eq_cache') || '[]')
+      if (cached.length > 0) {
+        setEquipment(cached)
+        setSelectedEquipment(cached[0])
+        setLoadingEquipment(false)
+      }
+    } catch {}
+
     const q = query(collection(db, 'equipment'), where('available', '==', true))
     const unsub = onSnapshot(q, (snap) => {
+      // Ignore empty cache hits — wait for real server data
+      if (snap.metadata.fromCache && snap.docs.length === 0) return
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
       setEquipment(list)
       setSelectedEquipment(prev => prev ?? (list[0] || null))
       setLoadingEquipment(false)
+      try { localStorage.setItem('eq_cache', JSON.stringify(list)) } catch {}
     }, (err) => {
       console.warn('Equipment snapshot error:', err.message)
-      setDbError(true)
       setLoadingEquipment(false)
     })
     return unsub
