@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { collection, getDocs, query, where, orderBy, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 import WeekCalendar from '../components/WeekCalendar'
 import BookingModal from '../components/BookingModal'
@@ -19,27 +19,21 @@ export default function Dashboard() {
   const [myBookings, setMyBookings] = useState([])
   const [tab, setTab] = useState('calendar') // 'calendar' | 'mine'
   const [dbError, setDbError] = useState(false)
+  const [loadingEquipment, setLoadingEquipment] = useState(true)
 
   useEffect(() => {
-    let cancelled = false
-    async function loadEquipment(attempt = 0) {
-      try {
-        const snap = await getDocs(query(collection(db, 'equipment'), where('available', '==', true)))
-        if (cancelled) return
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        setEquipment(list)
-        if (list.length > 0) setSelectedEquipment(list[0])
-      } catch (err) {
-        if (cancelled) return
-        if (attempt < 4) {
-          setTimeout(() => loadEquipment(attempt + 1), 1500)
-        } else {
-          setDbError(true)
-        }
-      }
-    }
-    loadEquipment()
-    return () => { cancelled = true }
+    const q = query(collection(db, 'equipment'), where('available', '==', true))
+    const unsub = onSnapshot(q, (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      setEquipment(list)
+      setSelectedEquipment(prev => prev ?? (list[0] || null))
+      setLoadingEquipment(false)
+    }, (err) => {
+      console.warn('Equipment snapshot error:', err.message)
+      setDbError(true)
+      setLoadingEquipment(false)
+    })
+    return unsub
   }, [])
 
   useEffect(() => {
@@ -85,9 +79,11 @@ export default function Dashboard() {
         <h1 className="text-xl font-bold text-gray-800 mb-3">Equipment Booking</h1>
         {dbError ? (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
-            Could not connect to database. Please refresh the page.
+            Could not connect to database.
             <button onClick={() => window.location.reload()} className="ml-3 underline">Retry</button>
           </div>
+        ) : loadingEquipment ? (
+          <div className="text-sm text-gray-400 animate-pulse">Loading equipment...</div>
         ) : equipment.length === 0 ? (
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm rounded-lg px-4 py-3">
             No equipment found. An admin needs to add equipment first.
