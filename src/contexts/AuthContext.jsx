@@ -76,10 +76,13 @@ export function AuthProvider({ children }) {
     return () => { authUnsub(); if (timer) clearTimeout(timer) }
   }, [])
 
+  const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean)
+  const isAdmin = adminEmails.includes(currentUser?.email) || userProfile?.role === 'admin'
+
   const value = {
     currentUser,
     userProfile,
-    isAdmin: userProfile?.role === 'admin',
+    isAdmin,
     signup,
     login,
     logout,
