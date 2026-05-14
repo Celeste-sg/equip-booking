@@ -25,13 +25,12 @@ export default function Dashboard() {
     let unsub = null
 
     async function load() {
-      // Fast path: fetch via REST API (plain HTTPS, no WebSocket needed)
+      // Fast path: fetch via REST API with API key (no auth token needed, equipment is public)
       try {
-        const token = await currentUser.getIdToken()
         const pid = import.meta.env.VITE_FIREBASE_PROJECT_ID
+        const key = import.meta.env.VITE_FIREBASE_API_KEY
         const res = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/equipment`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/equipment?key=${key}`
         )
         if (res.ok) {
           const json = await res.json()
