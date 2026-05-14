@@ -22,31 +22,63 @@ export default function Dashboard() {
   const [loadingEquipment, setLoadingEquipment] = useState(true)
 
   useEffect(() => {
-    // Show localStorage cache immediately while waiting for Firestore
-    try {
-      const cached = JSON.parse(localStorage.getItem('eq_cache') || '[]')
-      if (cached.length > 0) {
-        setEquipment(cached)
-        setSelectedEquipment(cached[0])
-        setLoadingEquipment(false)
-      }
-    } catch {}
+    let unsub = null
 
-    const q = query(collection(db, 'equipment'), where('available', '==', true))
-    const unsub = onSnapshot(q, (snap) => {
-      // Ignore empty cache hits — wait for real server data
-      if (snap.metadata.fromCache && snap.docs.length === 0) return
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      setEquipment(list)
-      setSelectedEquipment(prev => prev ?? (list[0] || null))
-      setLoadingEquipment(false)
-      try { localStorage.setItem('eq_cache', JSON.stringify(list)) } catch {}
-    }, (err) => {
-      console.warn('Equipment snapshot error:', err.message)
-      setLoadingEquipment(false)
-    })
-    return unsub
-  }, [])
+    async function load() {
+      // Fast path: fetch via REST API (plain HTTPS, no WebSocket needed)
+      try {
+        const token = await currentUser.getIdToken()
+        const pid = import.meta.env.VITE_FIREBASE_PROJECT_ID
+        const res = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/equipment`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (res.ok) {
+          const json = await res.json()
+          const list = (json.documents || []).map(d => {
+            const f = d.fields || {}
+            return {
+              id: d.name.split('/').pop(),
+              name: f.name?.stringValue || '',
+              description: f.description?.stringValue || '',
+              available: f.available?.booleanValue ?? true,
+            }
+          }).filter(e => e.available)
+          setEquipment(list)
+          setSelectedEquipment(prev => prev ?? (list[0] || null))
+          setLoadingEquipment(false)
+          try { localStorage.setItem('eq_cache', JSON.stringify(list)) } catch {}
+          return
+        }
+      } catch (err) {
+        console.warn('REST fetch failed, falling back to SDK:', err.message)
+      }
+
+      // Fallback: localStorage cache
+      try {
+        const cached = JSON.parse(localStorage.getItem('eq_cache') || '[]')
+        if (cached.length > 0) {
+          setEquipment(cached)
+          setSelectedEquipment(prev => prev ?? (cached[0] || null))
+          setLoadingEquipment(false)
+        }
+      } catch {}
+
+      // Fallback: Firestore SDK onSnapshot
+      const q = query(collection(db, 'equipment'), where('available', '==', true))
+      unsub = onSnapshot(q, (snap) => {
+        if (snap.metadata.fromCache && snap.docs.length === 0) return
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        setEquipment(list)
+        setSelectedEquipment(prev => prev ?? (list[0] || null))
+        setLoadingEquipment(false)
+        try { localStorage.setItem('eq_cache', JSON.stringify(list)) } catch {}
+      }, () => setLoadingEquipment(false))
+    }
+
+    load()
+    return () => unsub?.()
+  }, [currentUser])
 
   useEffect(() => {
     if (!selectedEquipment) return
