@@ -7,7 +7,13 @@
       "Bash(npm run *)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'Initial commit: Lab Equipment Booking System *)"
+      "Bash(git commit -m 'Initial commit: Lab Equipment Booking System *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(curl *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(git checkout *)"
     ]
   }
 }

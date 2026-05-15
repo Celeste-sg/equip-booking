@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database'
-import { db } from '../firebase'
+import { subscribeEquipment, subscribeBookingsByEquipment, subscribeBookingsByUser } from '$backend'
 import WeekCalendar from '../components/WeekCalendar'
 import BookingModal from '../components/BookingModal'
 import BookingDetailModal from '../components/BookingDetailModal'
@@ -21,14 +20,10 @@ export default function Dashboard() {
   const [loadingEquipment, setLoadingEquipment] = useState(true)
 
   useEffect(() => {
-    const unsub = onValue(ref(db, 'equipment'), (snap) => {
-      const list = []
-      snap.forEach((child) => {
-        const d = child.val()
-        if (d.available) list.push({ id: child.key, ...d })
-      })
-      setEquipment(list)
-      setSelectedEquipment(prev => prev ?? (list[0] || null))
+    const unsub = subscribeEquipment((list) => {
+      const available = list.filter(e => e.available)
+      setEquipment(available)
+      setSelectedEquipment(prev => prev ?? (available[0] || null))
       setLoadingEquipment(false)
     })
     return unsub
@@ -36,23 +31,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!selectedEquipment) return
-    const q = query(ref(db, 'bookings'), orderByChild('equipmentId'), equalTo(selectedEquipment.id))
-    const unsub = onValue(q, (snap) => {
-      const val = snap.val()
-      setBookings(val ? Object.entries(val).map(([key, data]) => ({ id: key, ...data })) : [])
-    })
+    const unsub = subscribeBookingsByEquipment(selectedEquipment.id, setBookings)
     return unsub
   }, [selectedEquipment])
 
   useEffect(() => {
     if (!currentUser) return
-    const q = query(ref(db, 'bookings'), orderByChild('userId'), equalTo(currentUser.uid))
-    const unsub = onValue(q, (snap) => {
-      const val = snap.val()
-      const list = val ? Object.entries(val).map(([key, data]) => ({ id: key, ...data })) : []
-      list.sort((a, b) => b.date.localeCompare(a.date))
-      setMyBookings(list)
-    })
+    const unsub = subscribeBookingsByUser(currentUser.uid, setMyBookings)
     return unsub
   }, [currentUser])
 
