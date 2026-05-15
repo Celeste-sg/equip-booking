@@ -20,7 +20,7 @@ export function AuthProvider({ children }) {
           if (profile) {
             setUserProfile(profile)
           } else {
-            const p = { uid: user.uid, email: user.email, name: user.displayName || user.email, role: 'user', createdAt: new Date().toISOString() }
+            const p = { email: user.email, name: user.displayName || user.email, role: 'user' }
             upsertProfile(user.uid, p).catch(() => {})
             setUserProfile(p)
           }
