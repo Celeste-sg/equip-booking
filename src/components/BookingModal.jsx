@@ -2,11 +2,6 @@ import { useState } from 'react'
 import { checkConflict, addBooking } from '$backend'
 import { useAuth } from '../contexts/AuthContext'
 import { format, parseISO, isAfter, isBefore, areIntervalsOverlapping } from 'date-fns'
-import emailjs from '@emailjs/browser'
-
-const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID
-const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
 
 export default function BookingModal({ equipment, selectedDate, onClose, onSuccess }) {
   const { currentUser, userProfile } = useAuth()
@@ -41,16 +36,6 @@ export default function BookingModal({ equipment, selectedDate, onClose, onSucce
         status: 'confirmed',
         createdAt: new Date().toISOString(),
       })
-      if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY) {
-        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-          to_email: currentUser.email,
-          to_name: userProfile?.name || 'User',
-          equipment_name: equipment.name,
-          booking_date: format(start, 'EEEE, MMMM d, yyyy'),
-          booking_time: `${startTime} – ${endTime}`,
-          purpose: purpose || '—',
-        }, EMAILJS_PUBLIC_KEY).catch(() => {})
-      }
       onSuccess()
     } catch { setError('Failed to create booking. Please try again.') }
     finally { setLoading(false) }
