@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     })
   }
 
-  const fromEmail = Deno.env.get('RESEND_FROM_EMAIL')!
+  const fromEmail = Deno.env.get('SENDGRID_FROM_EMAIL')!
   const subject = `New Booking: ${equipment_name} on ${date}`
   const html = `
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
@@ -73,24 +73,26 @@ Deno.serve(async (req) => {
     </div>
   `
 
-  const resendRes = await fetch('https://api.resend.com/emails', {
+  const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${Deno.env.get('RESEND_API_KEY')}`,
+      Authorization: `Bearer ${Deno.env.get('SENDGRID_API_KEY')}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: fromEmail,
-      to: fromEmail,
-      bcc: emails,
+      personalizations: [{
+        to: [{ email: fromEmail }],
+        bcc: emails.map((e) => ({ email: e })),
+      }],
+      from: { email: fromEmail },
       subject,
-      html,
+      content: [{ type: 'text/html', value: html }],
     }),
   })
 
-  if (!resendRes.ok) {
-    const err = await resendRes.text()
-    console.error('Resend error:', err)
+  if (!sgRes.ok) {
+    const err = await sgRes.text()
+    console.error('SendGrid error:', err)
     return new Response('Email send failed', { status: 500 })
   }
 
