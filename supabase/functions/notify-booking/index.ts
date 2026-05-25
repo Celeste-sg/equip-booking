@@ -24,13 +24,13 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   )
 
-  const { data: profiles, error } = await supabase.from('profiles').select('email')
+  const { data: { users }, error } = await supabase.auth.admin.listUsers()
   if (error) {
-    console.error('Failed to fetch profiles:', error.message)
+    console.error('Failed to fetch users:', error.message)
     return new Response('Internal Server Error', { status: 500 })
   }
 
-  const emails = (profiles ?? []).map((p: { email: string }) => p.email).filter(Boolean)
+  const emails = users.map((u: { email?: string }) => u.email).filter(Boolean) as string[]
   if (emails.length === 0) {
     return new Response(JSON.stringify({ ok: true, recipients: 0 }), {
       headers: { 'Content-Type': 'application/json' },
