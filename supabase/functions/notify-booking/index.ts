@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       personalizations: [{
         to: [{ email: fromEmail }],
-        bcc: emails.map((e) => ({ email: e })),
+        bcc: emails.filter((e) => e !== fromEmail).map((e) => ({ email: e })),
       }],
       from: { email: fromEmail },
       subject,
