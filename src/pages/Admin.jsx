@@ -22,7 +22,7 @@ export default function Admin() {
   )
 }
 
-const DEFAULT_EQUIPMENT = ['冻干机', '高压均质机', '微射流', '流化床']
+const DEFAULT_EQUIPMENT = ['冻干机', '高压均质机', '微射流', '流化床', '研究院二楼会议室']
 
 function EquipmentManager() {
   const [equipment, setEquipment] = useState([])
