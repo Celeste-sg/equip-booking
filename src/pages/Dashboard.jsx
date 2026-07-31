@@ -6,6 +6,8 @@ import BookingDetailModal from '../components/BookingDetailModal'
 import { useAuth } from '../contexts/AuthContext'
 import { format, isFuture, parseISO } from 'date-fns'
 
+const FEATURED_ROOM_NAME = '研究院二楼会议室'
+
 export default function Dashboard() {
   const { currentUser } = useAuth()
   const [equipment, setEquipment] = useState([])
@@ -21,7 +23,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     const unsub = subscribeEquipment((list) => {
-      const available = list.filter(e => e.available)
+      const available = list
+        .filter(e => e.available)
+        .sort((a, b) => {
+          if (a.name === FEATURED_ROOM_NAME) return -1
+          if (b.name === FEATURED_ROOM_NAME) return 1
+          return 0
+        })
       setEquipment(available)
       setSelectedEquipment(prev => prev ?? (available[0] || null))
       setLoadingEquipment(false)
@@ -51,7 +59,7 @@ export default function Dashboard() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-800 mb-3">Equipment Booking</h1>
+        <h1 className="text-xl font-bold text-gray-800 mb-3">Equipment/Room Booking</h1>
         {loadingEquipment ? (
           <div className="text-sm text-gray-400 animate-pulse">Loading equipment...</div>
         ) : equipment.length === 0 ? (
