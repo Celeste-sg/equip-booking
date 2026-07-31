@@ -6,7 +6,11 @@ Deno.serve(async (req) => {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  let payload: { type: string; record: Record<string, string> }
+  let payload: {
+    type: string
+    record: Record<string, string>
+    old_record?: Record<string, string>
+  }
   try {
     payload = await req.json()
   } catch {
@@ -15,6 +19,16 @@ Deno.serve(async (req) => {
 
   if (!payload.record) {
     return new Response('Bad Request: missing record', { status: 400 })
+  }
+
+  const isCancellation = payload.type === 'UPDATE' &&
+    payload.record.status === 'cancelled' &&
+    payload.old_record?.status !== 'cancelled'
+
+  if (payload.type !== 'INSERT' && !isCancellation) {
+    return new Response(JSON.stringify({ ok: true, skipped: true }), {
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 
   const { equipment_name, user_name, date, start_time, end_time, purpose } = payload.record
@@ -38,11 +52,15 @@ Deno.serve(async (req) => {
   }
 
   const fromEmail = Deno.env.get('SENDGRID_FROM_EMAIL')!
-  const subject = `New Booking: ${equipment_name} on ${date}`
+  const action = isCancellation ? 'Booking Cancelled' : 'New Booking'
+  const actionDescription = isCancellation
+    ? 'A booking has been cancelled.'
+    : 'A new booking has been made.'
+  const subject = `${action}: ${equipment_name} on ${date}`
   const html = `
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
-      <h2 style="color:#1e40af;margin-bottom:4px;">New Equipment Booking</h2>
-      <p style="color:#6b7280;margin-top:0;">A new booking has been made.</p>
+      <h2 style="color:${isCancellation ? '#b91c1c' : '#1e40af'};margin-bottom:4px;">${action}</h2>
+      <p style="color:#6b7280;margin-top:0;">${actionDescription}</p>
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin-top:16px;">
         <table style="width:100%;border-collapse:collapse;">
           <tr>
@@ -92,8 +110,15 @@ Deno.serve(async (req) => {
 
   if (!sgRes.ok) {
     const err = await sgRes.text()
-    console.error('SendGrid error:', err)
-    return new Response('Email send failed', { status: 500 })
+    console.error(`SendGrid error (${sgRes.status}):`, err)
+    return new Response(JSON.stringify({
+      ok: false,
+      error: 'Email send failed',
+      providerStatus: sgRes.status,
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 
   return new Response(JSON.stringify({ ok: true, recipients: emails.length }), {
