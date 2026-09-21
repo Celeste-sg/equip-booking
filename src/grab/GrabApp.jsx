@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import GrabAuth from './GrabAuth'
@@ -9,56 +8,11 @@ import PayPage from './PayPage'
 import MyGrab from './MyGrab'
 import PickupList from './PickupList'
 
-const ACCESS_KEY = 'grab_access'
-const ACCESS_PASSWORD = 'grab'
-
-// Lightweight gate only — not real security. Real access control is Supabase login + RLS.
-function hasAccess() {
-  try { return localStorage.getItem(ACCESS_KEY) === '1' } catch { return false }
-}
-
-function Gate({ onPass }) {
-  const [value, setValue] = useState('')
-  const [error, setError] = useState(false)
-
-  function submit(e) {
-    e.preventDefault()
-    if (value.trim() === ACCESS_PASSWORD) {
-      try { localStorage.setItem(ACCESS_KEY, '1') } catch { /* ignore */ }
-      onPass()
-    } else {
-      setError(true)
-    }
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-amber-50 px-4">
-      <form onSubmit={submit} className="bg-white rounded-3xl shadow-lg p-8 w-full max-w-sm text-center">
-        <div className="text-5xl mb-3">☕🧋</div>
-        <h1 className="text-2xl font-bold mb-6">Grab</h1>
-        <input
-          type="password"
-          value={value}
-          onChange={(e) => { setValue(e.target.value); setError(false) }}
-          placeholder="请输入访问密码"
-          autoFocus
-          className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-lg text-center focus:outline-none focus:ring-2 focus:ring-amber-400"
-        />
-        {error && <p className="text-red-500 text-sm mt-2">密码不对</p>}
-        <button type="submit" className="w-full mt-4 bg-amber-500 active:bg-amber-600 text-white text-lg font-semibold rounded-2xl py-3">
-          进入
-        </button>
-      </form>
-    </div>
-  )
-}
-
 export default function GrabApp() {
   const { currentUser, userProfile, logout } = useAuth()
-  const [allowed, setAllowed] = useState(hasAccess)
 
-  if (!allowed) return <Gate onPass={() => setAllowed(true)} />
   // Same Supabase accounts as instrument booking, with a Grab-styled login/register; we stay on /grab.
+  // Not logged in: the landing page is the login page.
   if (!currentUser) return <GrabAuth />
 
   return (

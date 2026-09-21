@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { completeEvent, deleteEvent, getEvent, setPickupStatus, joinEvent, leaveEvent, removeQr, signedUrl, uploadQr } from './api'
 import PayCodeSettings from './PayCodeSettings'
+import GroupImage from './GroupImage'
 import { TYPES, STATUS_LABEL, effectiveStatus, fmtDateTime, fmtTime, mapUrl, openAmap } from './util'
 
 const inputCls = 'w-full border border-gray-300 rounded-2xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400'
@@ -35,7 +36,7 @@ export default function EventDetail() {
 
   if (!data) return <p className={`py-8 text-center ${error ? 'text-red-500' : 'text-gray-400'}`}>{error || '加载中…'}</p>
 
-  const { event, names } = data
+  const { event, names, privateInfo } = data
   const t = TYPES[event.type]
   const status = effectiveStatus(event)
   const participants = event.grab_participants
@@ -80,7 +81,7 @@ export default function EventDetail() {
     setBusy(true)
     setError('')
     try {
-      await deleteEvent(event.id, participants.map(p => p.qr_path).filter(Boolean))
+      await deleteEvent(event.id, participants.map(p => p.qr_path).filter(Boolean), privateInfo?.group_image_path)
       navigate('/grab', { replace: true })
     } catch {
       setError('删除失败，请重试')
@@ -123,8 +124,14 @@ export default function EventDetail() {
           </div>
         )}
         {event.max_participants && <div>人数上限：{event.max_participants}</div>}
-        {event.note && <div className="text-gray-500">{isPickup ? '备注' : '微信号'}：{event.note}</div>}
+        {isPickup && event.note && <div className="text-gray-500">备注：{event.note}</div>}
+        {!isPickup && privateInfo?.wechat_id && <div className="text-gray-500">发起人微信号：{privateInfo.wechat_id}</div>}
+        {!isCreator && !mine && (
+          <div className="text-xs text-gray-400 pt-1">🔒 参加后可查看发起人的微信号和群二维码</div>
+        )}
       </div>
+
+      <GroupImage event={event} path={privateInfo?.group_image_path} userId={currentUser.uid} canEdit={isCreator && status !== 'completed'} onChanged={load} />
 
       {isPickup && canJoin && (
         <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">

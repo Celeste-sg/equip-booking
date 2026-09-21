@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { createEvent, getEvent, joinEvent, updateEvent } from './api'
+import { createEvent, getEvent, joinEvent, saveEventPrivate, updateEvent } from './api'
 import { TYPES, defaultLocalTime, toLocalInput, PICKUP_STORE, PICKUP_ADDRESS, DELIVERY_APPS } from './util'
 
 const inputCls = 'w-full border border-gray-300 rounded-2xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400'
@@ -19,28 +19,30 @@ function Field({ label, children }) {
 export default function CreateEvent() {
   const { type, id } = useParams()
   const { currentUser } = useAuth()
-  const [event, setEvent] = useState(null)
+  const [loaded, setLoaded] = useState(null) // { event, privateInfo }
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (!id) return
-    getEvent(id).then(({ event }) => setEvent(event)).catch(() => setError('找不到这个活动'))
+    getEvent(id).then(({ event, privateInfo }) => setLoaded({ event, privateInfo })).catch(() => setError('找不到这个活动'))
   }, [id])
 
   if (!id) return <EventForm type={type} />
   if (error) return <p className="text-red-500 py-8 text-center">{error}</p>
-  if (!event) return <p className="text-gray-400 py-8 text-center">加载中…</p>
+  if (!loaded) return <p className="text-gray-400 py-8 text-center">加载中…</p>
+  const { event, privateInfo } = loaded
   if (event.creator_id !== currentUser.uid) return <Navigate to={`/grab/event/${id}`} replace />
-  return <EventForm type={event.type} event={event} />
+  return <EventForm type={event.type} event={event} privateInfo={privateInfo} />
 }
 
-function EventForm({ type, event }) {
+function EventForm({ type, event, privateInfo }) {
   const { currentUser } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState(event ? {
     store_name: event.store_name,
     location_text: event.location_text || '',
-    note: event.note || '',
+    // Group orders keep the WeChat ID in the participants-only table.
+    note: (event.type === 'group_order' ? privateInfo?.wechat_id : event.note) || '',
     deadline: toLocalInput(event.deadline),
     expected_pickup_time: event.expected_pickup_time ? toLocalInput(event.expected_pickup_time) : '',
     max_participants: event.max_participants ?? '',
@@ -70,20 +72,25 @@ function EventForm({ type, event }) {
       const fields = {
         store_name: form.store_name.trim(),
         location_text: type === 'pickup' ? form.location_text.trim() || null : null,
-        note: form.note.trim() || null,
+        note: type === 'pickup' ? form.note.trim() || null : null,
         deadline: new Date(form.deadline).toISOString(),
         expected_pickup_time: type === 'pickup' && form.expected_pickup_time
           ? new Date(form.expected_pickup_time).toISOString() : null,
         max_participants: type === 'group_order' && form.max_participants ? Number(form.max_participants) : null,
       }
+      const wechat = form.note.trim() || null
       if (event) {
         await updateEvent(event.id, fields)
+        if (type === 'group_order') await saveEventPrivate(event.id, { wechat_id: wechat })
         navigate(`/grab/event/${event.id}`, { replace: true })
         return
       }
       const id = await createEvent({ ...fields, type, creator_id: currentUser.uid })
-      // The starter of a group order is the first participant.
-      if (type === 'group_order') await joinEvent(id, currentUser.uid)
+      if (type === 'group_order') {
+        if (wechat) await saveEventPrivate(id, { wechat_id: wechat })
+        // The starter of a group order is the first participant.
+        await joinEvent(id, currentUser.uid)
+      }
       navigate(`/grab/event/${id}`, { replace: true })
     } catch {
       setError(event ? '保存失败，请重试' : '创建失败，请重试')
@@ -134,7 +141,7 @@ function EventForm({ type, event }) {
         </Field>
       )}
       <Field label={type === 'group_order' ? '微信号（选填）' : '备注（选填）'}>
-        <input className={inputCls} value={form.note} onChange={set('note')} placeholder={type === 'group_order' ? '方便大家加你' : ''} />
+        <input className={inputCls} value={form.note} onChange={set('note')} placeholder={type === 'group_order' ? '参加的人才能看到' : ''} />
       </Field>
 
       {error && <p className="text-red-500 text-sm">{error}</p>}
