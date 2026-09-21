@@ -7,11 +7,11 @@ const BADGE = {
   completed: 'bg-gray-100 text-gray-500',
 }
 
-export default function EventCard({ event, names, showDate = false }) {
+export default function EventCard({ event, names, showDate = false, pinned = false }) {
   const t = TYPES[event.type]
   const status = effectiveStatus(event)
   return (
-    <Link to={`/grab/event/${event.id}`} className="block bg-white rounded-2xl shadow-sm p-4 active:bg-gray-50">
+    <Link to={`/grab/event/${event.id}`} className={`block bg-white rounded-2xl p-4 active:bg-gray-50 ${pinned ? 'border-2 border-amber-400 shadow' : 'shadow-sm'}`}>
       <div className="flex items-center justify-between">
         <div className="text-lg font-semibold">{t.emoji} {event.store_name}</div>
         <span className={`text-xs px-2 py-0.5 rounded-full ${BADGE[status]}`}>{STATUS_LABEL[status]}</span>

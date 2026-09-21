@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import Login from '../pages/Login'
+import GrabAuth from './GrabAuth'
 import GrabHome from './GrabHome'
 import CreateEvent from './CreateEvent'
 import EventDetail from './EventDetail'
@@ -53,17 +53,21 @@ function Gate({ onPass }) {
 }
 
 export default function GrabApp() {
-  const { currentUser } = useAuth()
+  const { currentUser, userProfile, logout } = useAuth()
   const [allowed, setAllowed] = useState(hasAccess)
 
   if (!allowed) return <Gate onPass={() => setAllowed(true)} />
-  // Same Supabase login as instrument booking; after login we stay on /grab.
-  if (!currentUser) return <Login />
+  // Same Supabase accounts as instrument booking, with a Grab-styled login/register; we stay on /grab.
+  if (!currentUser) return <GrabAuth />
 
   return (
     <div className="min-h-screen bg-amber-50">
-      <header className="px-4 py-3 max-w-lg mx-auto">
+      <header className="flex items-center justify-between px-4 py-3 max-w-lg mx-auto">
         <Link to="/grab" className="text-xl font-bold text-amber-600">Grab</Link>
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-gray-500 truncate max-w-[8rem]">{userProfile?.name || currentUser.email}</span>
+          <button onClick={() => logout().catch(() => {})} className="text-gray-400 active:text-red-500 py-2">退出登录</button>
+        </div>
       </header>
       <main className="max-w-lg mx-auto px-4 pb-16">
         <Routes>

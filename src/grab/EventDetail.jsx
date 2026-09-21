@@ -40,9 +40,10 @@ export default function EventDetail() {
   const participants = event.grab_participants
   const mine = participants.find(p => p.user_id === currentUser.uid)
   const isFull = event.max_participants != null && participants.length >= event.max_participants
-  const canJoin = status === 'open' && !mine && !isFull
   const isPickup = event.type === 'pickup'
   const isCreator = currentUser.uid === event.creator_id
+  // The pickup organizer collects orders, so they can't submit one to their own event.
+  const canJoin = status === 'open' && !mine && !isFull && !(isPickup && isCreator)
 
   async function act(fn) {
     setBusy(true)
@@ -124,7 +125,7 @@ export default function EventDetail() {
 
       {isPickup && canJoin && (
         <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
-          <p className="text-sm text-gray-500">先在瑞幸小程序自己下单，然后上传取餐二维码。跑腿费自愿支付，金额随意 ☕</p>
+          <p className="text-sm text-gray-500">先在瑞幸小程序自己下单，然后上传取餐二维码。帮带费自愿支付，金额随意 ☕</p>
           <label className="block border-2 border-dashed border-amber-300 rounded-2xl py-6 text-center text-amber-600 active:bg-amber-50">
             {form.file ? `✅ ${form.file.name}` : '📷 上传取餐二维码'}
             <input type="file" accept="image/*" className="hidden" onChange={(e) => setForm({ ...form, file: e.target.files[0] || null })} />
@@ -142,7 +143,7 @@ export default function EventDetail() {
       )}
       {isPickup && mine && !mine.paid && (
         <Link to={`/grab/event/${event.id}/pay`} className="block text-center bg-amber-500 active:bg-amber-600 text-white text-lg font-semibold rounded-2xl py-3.5">
-          ☕ 自愿支付跑腿费
+          ☕ 自愿支付帮带费
         </Link>
       )}
       {mine && status === 'open' && (
@@ -182,7 +183,7 @@ export default function EventDetail() {
                 {isPickup && (isCreator || p.user_id === currentUser.uid) && (
                   <span className="text-sm text-gray-500">
                     {p.quantity ? `×${p.quantity} ` : ''}
-                    {p.paid && <span className="text-green-600">已支付跑腿费 ❤️</span>}
+                    {p.paid && <span className="text-green-600">已支付帮带费 ❤️</span>}
                   </span>
                 )}
               </div>

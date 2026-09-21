@@ -6,16 +6,18 @@ async function fetchNames() {
 }
 
 export async function listActiveEvents() {
-  const [{ data, error }, names] = await Promise.all([
+  const [{ data, error }, names, organizer] = await Promise.all([
     supabase.from('grab_events')
       .select('*, grab_participants(user_id)')
       .eq('status', 'open')
       .gt('deadline', new Date().toISOString())
       .order('deadline'),
     fetchNames(),
+    supabase.rpc('grab_pickup_organizer_id'),
   ])
   if (error) throw error
-  return { events: data || [], names }
+  // organizerId: the featured pickup organiser, whose trip is pinned on the home page.
+  return { events: data || [], names, organizerId: organizer.data || null }
 }
 
 export async function getEvent(id) {

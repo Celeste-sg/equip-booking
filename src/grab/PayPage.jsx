@@ -41,12 +41,12 @@ export default function PayPage() {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Link to={`/grab/event/${id}`} className="text-gray-400 text-xl px-2">‹</Link>
-        <h1 className="text-xl font-bold">自愿支付跑腿费</h1>
+        <h1 className="text-xl font-bold">自愿支付帮带费</h1>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-5 text-center">
         <div className="text-3xl">☕</div>
-        <div className="text-base text-gray-700 mt-1">谢谢帮忙！金额随意，不支付也没关系</div>
+        <div className="text-base text-gray-700 mt-1">自愿支付帮带费，不支付也没关系</div>
         <div className="flex gap-2 justify-center my-4">
           {Object.entries(METHODS).map(([key, m]) => (
             <button key={key} onClick={() => setMethod(key)}
