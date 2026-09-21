@@ -7,6 +7,7 @@ import CreateEvent from './CreateEvent'
 import EventDetail from './EventDetail'
 import PayPage from './PayPage'
 import MyGrab from './MyGrab'
+import PickupList from './PickupList'
 
 const ACCESS_KEY = 'grab_access'
 const ACCESS_PASSWORD = 'grab'
@@ -72,6 +73,7 @@ export default function GrabApp() {
       <main className="max-w-lg mx-auto px-4 pb-16">
         <Routes>
           <Route index element={<GrabHome />} />
+          <Route path="pickups" element={<PickupList />} />
           <Route path="mine" element={<MyGrab />} />
           <Route path="new/:type" element={<CreateEvent />} />
           <Route path="event/:id" element={<EventDetail />} />

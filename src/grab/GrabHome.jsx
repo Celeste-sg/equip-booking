@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
 import { listActiveEvents } from './api'
 import EventCard from './EventCard'
 
+function Choice({ to, emoji, title, hint, className }) {
+  return (
+    <Link to={to} className={`flex items-center gap-4 rounded-3xl p-5 active:opacity-90 ${className}`}>
+      <div className="text-4xl">{emoji}</div>
+      <div>
+        <div className="text-xl font-bold">{title}</div>
+        <div className="text-sm opacity-80 mt-0.5">{hint}</div>
+      </div>
+    </Link>
+  )
+}
+
 export default function GrabHome() {
-  const { currentUser } = useAuth()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
@@ -13,45 +23,30 @@ export default function GrabHome() {
     listActiveEvents().then(setData).catch(() => setError('加载失败，请刷新重试'))
   }, [])
 
-  // The featured organiser's pickup trips are pinned at the top; the rest follow by deadline.
-  const isFeatured = (e) => e.type === 'pickup' && data?.organizerId && e.creator_id === data.organizerId
-  const pinned = data ? data.events.filter(isFeatured) : []
-  const others = data ? data.events.filter(e => !isFeatured(e)) : []
-  const viewerIsOrganizer = data?.organizerId === currentUser.uid
+  const pickups = data ? data.events.filter(e => e.type === 'pickup') : []
+  const groupOrders = data ? data.events.filter(e => e.type === 'group_order') : []
 
   return (
     <div className="space-y-4">
-      <Link to="/grab/new/pickup" className="block bg-amber-500 active:bg-amber-600 text-white rounded-3xl p-5 shadow">
-        <div className="text-xl font-bold">☕ 我要去瑞幸</div>
-        <div className="text-sm opacity-90 mt-1">可以帮带</div>
-      </Link>
-      <Link to="/grab/new/group_order" className="block bg-pink-500 active:bg-pink-600 text-white rounded-3xl p-5 shadow">
-        <div className="text-xl font-bold">🧋 一起点外卖</div>
-        <div className="text-sm opacity-90 mt-1">我们一起点</div>
-      </Link>
+      <h1 className="text-lg text-gray-500 px-1">你想做什么？</h1>
+
+      <Choice to="/grab/pickups" emoji="🙋" title="我需要帮带"
+        hint={!data ? '看看谁在去瑞幸' : pickups.length ? `${pickups.length} 个帮带行程进行中` : '暂时没有人去瑞幸'}
+        className="bg-amber-500 text-white shadow" />
+      <Choice to="/grab/new/pickup" emoji="☕" title="我要发起帮带" hint="我去瑞幸，可以帮大家带"
+        className="bg-white text-gray-800 border-2 border-amber-400" />
+      <Choice to="/grab/new/group_order" emoji="🧋" title="我要发起外卖拼单" hint="淘宝闪购 / 美团外卖 / 京东外卖，找人一起点"
+        className="bg-white text-gray-800 border-2 border-pink-400" />
 
       {error && <p className="text-red-500 text-sm">{error}</p>}
+
+      <div className="flex items-center justify-between pt-3">
+        <h2 className="text-sm font-semibold text-gray-500">🧋 正在拼单，可以加入</h2>
+        <Link to="/grab/mine" className="text-sm text-amber-600">我的 Grab ›</Link>
+      </div>
       {!data && !error && <p className="text-gray-400 text-sm">加载中…</p>}
-
-      {data && (
-        <>
-          <h2 className="text-sm font-semibold text-gray-500 pt-2">☕ 瑞幸帮带</h2>
-          {pinned.map(e => <EventCard key={e.id} event={e} names={data.names} pinned />)}
-          {pinned.length === 0 && (
-            <div className="bg-white rounded-2xl border-2 border-dashed border-amber-300 p-4 text-center text-gray-400">
-              <div>暂时没有帮带行程</div>
-              {viewerIsOrganizer && <Link to="/grab/new/pickup" className="text-amber-600 text-sm">去发起一个 ›</Link>}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between pt-2">
-            <h2 className="text-sm font-semibold text-gray-500">进行中</h2>
-            <Link to="/grab/mine" className="text-sm text-amber-600">我的 Grab ›</Link>
-          </div>
-          {others.length === 0 && <p className="text-gray-400 text-sm text-center py-6">还没有其他活动</p>}
-          {others.map(e => <EventCard key={e.id} event={e} names={data.names} />)}
-        </>
-      )}
+      {data && groupOrders.length === 0 && <p className="text-gray-400 text-sm text-center py-4">现在没有拼单</p>}
+      {groupOrders.map(e => <EventCard key={e.id} event={e} names={data.names} />)}
     </div>
   )
 }

@@ -99,6 +99,24 @@ export async function signedUrl(bucket, path) {
   return data.signedUrl
 }
 
+// Organiser payment codes: grab-pay/users/<uid>/<method> (method = alipay | wechat).
+export async function uploadPayCode(userId, method, file) {
+  const { error } = await supabase.storage.from('grab-pay')
+    .upload(`users/${userId}/${method}`, file, { upsert: true, contentType: file.type || 'image/jpeg' })
+  if (error) throw error
+}
+
+// Signed URL of a user's payment code, or null if they haven't uploaded one.
+export async function payCodeUrl(userId, method) {
+  const { data, error } = await supabase.storage.from('grab-pay').createSignedUrl(`users/${userId}/${method}`, 3600)
+  return error ? null : data.signedUrl
+}
+
+export async function getPickupOrganizerId() {
+  const { data } = await supabase.rpc('grab_pickup_organizer_id')
+  return data || null
+}
+
 export async function markPaid(eventId, userId) {
   const { error } = await supabase.from('grab_participants').update({ paid: true })
     .eq('event_id', eventId).eq('user_id', userId)

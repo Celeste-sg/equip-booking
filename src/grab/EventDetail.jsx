@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { completeEvent, deleteEvent, getEvent, setPickupStatus, joinEvent, leaveEvent, removeQr, signedUrl, uploadQr } from './api'
-import { TYPES, STATUS_LABEL, effectiveStatus, fmtDateTime, fmtTime, mapUrl } from './util'
+import PayCodeSettings from './PayCodeSettings'
+import { TYPES, STATUS_LABEL, effectiveStatus, fmtDateTime, fmtTime, mapUrl, openAmap } from './util'
 
 const inputCls = 'w-full border border-gray-300 rounded-2xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400'
 
@@ -116,7 +117,9 @@ export default function EventDetail() {
         {event.location_text && (
           <div>
             地址：{event.location_text}{' '}
-            <a href={mapUrl(event.location_text)} target="_blank" rel="noreferrer" className="text-blue-500 underline whitespace-nowrap">高德地图导航</a>
+            <a href={mapUrl(event.location_text)} target="_blank" rel="noreferrer"
+              onClick={(e) => { e.preventDefault(); openAmap(event.location_text) }}
+              className="text-blue-500 underline whitespace-nowrap">📍 用高德地图打开</a>
           </div>
         )}
         {event.max_participants && <div>人数上限：{event.max_participants}</div>}
@@ -171,6 +174,8 @@ export default function EventDetail() {
           </button>
         </div>
       )}
+
+      {isPickup && isCreator && status !== 'completed' && <PayCodeSettings userId={currentUser.uid} />}
 
       <div className="bg-white rounded-2xl shadow-sm p-4">
         <div className="text-sm font-semibold text-gray-500 mb-2">{participants.length} 人参加</div>
