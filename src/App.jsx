@@ -1,10 +1,14 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Admin from './pages/Admin'
 import Navbar from './components/Navbar'
+
+// Grab is Supabase-only; lazy-loaded so it never runs unless /grab is opened.
+const GrabApp = lazy(() => import('./grab/GrabApp'))
 
 function PrivateRoute({ children }) {
   const { currentUser } = useAuth()
@@ -20,10 +24,13 @@ function AdminRoute({ children }) {
 
 function AppRoutes() {
   const { currentUser } = useAuth()
+  const { pathname } = useLocation()
+  const inGrab = pathname.startsWith('/grab')
   return (
     <div className="min-h-screen bg-gray-50">
-      {currentUser && <Navbar />}
+      {currentUser && !inGrab && <Navbar />}
       <Routes>
+        <Route path="/grab/*" element={<Suspense fallback={null}><GrabApp /></Suspense>} />
         <Route path="/login" element={currentUser ? <Navigate to="/" replace /> : <Login />} />
         <Route path="/register" element={currentUser ? <Navigate to="/" replace /> : <Register />} />
         <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />

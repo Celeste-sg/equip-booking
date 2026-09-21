@@ -3,3 +3,6 @@ dist
 .env
 .env.local
 .DS_Store
+
+# Personal payment QR codes: upload to Supabase Storage bucket grab-pay, never commit
+local-assets/
