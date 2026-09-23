@@ -28,8 +28,11 @@ export default function Login() {
       await resetPassword(email)
       setResetSent(true)
       setError('')
-    } catch {
-      setError('Could not send reset email.')
+    } catch (err) {
+      const m = (err?.message || '').toLowerCase()
+      if (m.includes('email rate limit')) setError('Too many emails sent right now. Try again in an hour, or ask an admin to reset your password.')
+      else if (m.includes('security purposes')) setError('Please wait a minute before requesting another email.')
+      else setError(`Could not send reset email: ${err?.message || 'please try again'}`)
     }
   }
 
@@ -49,7 +52,7 @@ export default function Login() {
         )}
         {resetSent && (
           <div className="bg-green-50 border border-green-200 text-green-600 text-sm rounded-lg px-4 py-3 mb-4">
-            Password reset email sent!
+            Password reset email sent! Check your inbox (and spam), then click the link to set a new password.
           </div>
         )}
 
