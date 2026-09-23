@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, login, signup, logout, resetPassword, subscribeProfile, upsertProfile, getAdminEmails } from '$backend'
+import { onAuthStateChanged, login, signup, logout, resetPassword, updateName as saveName, changePassword, subscribeProfile, upsertProfile, getAdminEmails } from '$backend'
 
 const AuthContext = createContext()
 export function useAuth() { return useContext(AuthContext) }
@@ -32,11 +32,17 @@ export function AuthProvider({ children }) {
     return () => { authUnsub(); if (profileUnsub) profileUnsub() }
   }, [])
 
+  // Update locally too, in case the profile subscription doesn't push the change.
+  async function updateName(name) {
+    await saveName(currentUser.uid, name)
+    setUserProfile(p => ({ ...p, name }))
+  }
+
   const adminEmails = getAdminEmails()
   const isAdmin = adminEmails.includes(currentUser?.email) || userProfile?.role === 'admin'
 
   return (
-    <AuthContext.Provider value={{ currentUser, userProfile, isAdmin, login, signup, logout, resetPassword }}>
+    <AuthContext.Provider value={{ currentUser, userProfile, isAdmin, login, signup, logout, resetPassword, updateName, changePassword }}>
       {!loading && children}
     </AuthContext.Provider>
   )

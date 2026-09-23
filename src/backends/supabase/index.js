@@ -67,6 +67,19 @@ export async function resetPassword(email) {
   const { error } = await supabase.auth.resetPasswordForEmail(email)
   if (error) throw error
 }
+export async function updateName(userId, name) {
+  const { error } = await supabase.auth.updateUser({ data: { name } })
+  if (error) throw error
+  const { error: e2 } = await supabase.from('profiles').update({ name }).eq('id', userId)
+  if (e2) throw e2
+}
+// Re-checks the current password before setting the new one.
+export async function changePassword(email, currentPassword, newPassword) {
+  const { error: e1 } = await supabase.auth.signInWithPassword({ email, password: currentPassword })
+  if (e1) throw e1
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
+}
 
 // ── Profiles ──────────────────────────────────────────────────────────────────
 export function subscribeProfile(userId, cb) {

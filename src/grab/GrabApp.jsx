@@ -7,6 +7,7 @@ import EventDetail from './EventDetail'
 import PayPage from './PayPage'
 import MyGrab from './MyGrab'
 import PickupList from './PickupList'
+import Account from './Account'
 
 export default function GrabApp() {
   const { currentUser, userProfile, logout } = useAuth()
@@ -20,7 +21,7 @@ export default function GrabApp() {
       <header className="flex items-center justify-between px-4 py-3 max-w-lg mx-auto">
         <Link to="/grab" className="text-xl font-bold text-amber-600">Grab</Link>
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-gray-500 truncate max-w-[8rem]">{userProfile?.name || currentUser.email}</span>
+          <Link to="/grab/account" className="text-gray-500 truncate max-w-[8rem] py-2 underline decoration-dotted underline-offset-4">{userProfile?.name || currentUser.email} ⚙︎</Link>
           <button onClick={() => logout().catch(() => {})} className="text-gray-400 active:text-red-500 py-2">退出登录</button>
         </div>
       </header>
@@ -29,6 +30,7 @@ export default function GrabApp() {
           <Route index element={<GrabHome />} />
           <Route path="pickups" element={<PickupList />} />
           <Route path="mine" element={<MyGrab />} />
+          <Route path="account" element={<Account />} />
           <Route path="new/:type" element={<CreateEvent />} />
           <Route path="event/:id" element={<EventDetail />} />
           <Route path="event/:id/edit" element={<CreateEvent />} />

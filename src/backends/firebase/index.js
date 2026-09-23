@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged as fbOnAuthStateChanged, sendPasswordResetEmail, updateProfile } from 'firebase/auth'
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged as fbOnAuthStateChanged, sendPasswordResetEmail, updateProfile, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { getDatabase, ref, set, push, update, remove, onValue, query, orderByChild, equalTo, get } from 'firebase/database'
 import { areIntervalsOverlapping, parseISO } from 'date-fns'
 
@@ -27,6 +27,14 @@ export async function signup(email, password, name) {
 }
 export async function logout() { await signOut(auth) }
 export async function resetPassword(email) { await sendPasswordResetEmail(auth, email) }
+export async function updateName(userId, name) {
+  await updateProfile(auth.currentUser, { displayName: name })
+  await update(ref(db, `users/${userId}`), { name })
+}
+export async function changePassword(email, currentPassword, newPassword) {
+  await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(email, currentPassword))
+  await updatePassword(auth.currentUser, newPassword)
+}
 
 // ── Profiles ──────────────────────────────────────────────────────────────────
 export function subscribeProfile(userId, cb) {
