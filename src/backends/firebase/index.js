@@ -27,6 +27,9 @@ export async function signup(email, password, name) {
 }
 export async function logout() { await signOut(auth) }
 export async function resetPassword(email) { await sendPasswordResetEmail(auth, email) }
+// Firebase hosts its own reset page, so the app never sees a recovery session.
+export function onPasswordRecovery() { return () => {} }
+export async function setNewPassword() { throw new Error('Not supported') }
 export async function updateName(userId, name) {
   await updateProfile(auth.currentUser, { displayName: name })
   await update(ref(db, `users/${userId}`), { name })

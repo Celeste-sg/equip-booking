@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, login, signup, logout, resetPassword, updateName as saveName, changePassword, subscribeProfile, upsertProfile, getAdminEmails } from '$backend'
+import { onAuthStateChanged, login, signup, logout, resetPassword, updateName as saveName, changePassword, onPasswordRecovery, setNewPassword, subscribeProfile, upsertProfile, getAdminEmails } from '$backend'
 
 const AuthContext = createContext()
 export function useAuth() { return useContext(AuthContext) }
@@ -8,6 +8,10 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  // 'recovery' | 'expired' | null — set when the page is opened from a reset-password email link.
+  const [recovery, setRecovery] = useState(null)
+
+  useEffect(() => onPasswordRecovery(setRecovery), [])
 
   useEffect(() => {
     let profileUnsub = null
@@ -42,7 +46,7 @@ export function AuthProvider({ children }) {
   const isAdmin = adminEmails.includes(currentUser?.email) || userProfile?.role === 'admin'
 
   return (
-    <AuthContext.Provider value={{ currentUser, userProfile, isAdmin, login, signup, logout, resetPassword, updateName, changePassword }}>
+    <AuthContext.Provider value={{ currentUser, userProfile, isAdmin, login, signup, logout, resetPassword, updateName, changePassword, recovery, setRecovery, setNewPassword }}>
       {!loading && children}
     </AuthContext.Provider>
   )

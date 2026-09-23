@@ -6,6 +6,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Admin from './pages/Admin'
 import Navbar from './components/Navbar'
+import ResetPassword from './pages/ResetPassword'
 
 // Grab is Supabase-only; lazy-loaded so it never runs unless /grab is opened.
 const GrabApp = lazy(() => import('./grab/GrabApp'))
@@ -23,8 +24,9 @@ function AdminRoute({ children }) {
 }
 
 function AppRoutes() {
-  const { currentUser } = useAuth()
+  const { currentUser, recovery } = useAuth()
   const { pathname } = useLocation()
+  if (recovery) return <ResetPassword />
   const inGrab = pathname.startsWith('/grab')
   return (
     <div className="min-h-screen bg-gray-50">

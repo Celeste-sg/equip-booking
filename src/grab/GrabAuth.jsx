@@ -10,6 +10,8 @@ function zhError(err) {
   if (m.includes('already registered')) return '这个邮箱已经注册过了，请直接登录'
   if (m.includes('email not confirmed')) return '邮箱还没确认，请先点击邮件里的确认链接'
   if (m.includes('at least 6')) return '密码至少 6 位'
+  if (m.includes('email rate limit')) return '系统邮件发送次数已达上限，请过 1 小时再试，或联系管理员直接重置密码'
+  if (m.includes('security purposes')) return '请等 1 分钟后再重新发送'
   if (m.includes('rate limit') || m.includes('too many')) return '操作太频繁，请稍后再试'
   if (m.includes('invalid') && m.includes('email')) return '邮箱格式不对'
   return `失败：${err?.message || '请重试'}`
@@ -56,9 +58,9 @@ export default function GrabAuth() {
   async function forgot() {
     if (!email.trim()) return setError('请先填写邮箱')
     try {
-      await resetPassword(email.trim())
+      await resetPassword(email.trim(), 'grab')
       setError('')
-      setNotice('重置密码邮件已发送，请查收')
+      setNotice('重置密码邮件已发送，请查收（也看看垃圾邮件）。点击邮件里的链接后即可设置新密码。')
     } catch (err) {
       setError(zhError(err))
     }

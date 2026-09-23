@@ -1,6 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { areIntervalsOverlapping, parseISO } from 'date-fns'
 
+// Read the reset-link result before the client consumes (and clears) the URL hash.
+const authHash = new URLSearchParams(window.location.hash.slice(1))
+const recoveryLink = authHash.get('type') === 'recovery' && authHash.has('access_token')
+const recoveryLinkError = authHash.get('error_code') || authHash.get('error')
+
 export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -63,8 +68,27 @@ export async function logout() {
   const { error } = await supabase.auth.signOut()
   if (error) throw error
 }
-export async function resetPassword(email) {
-  const { error } = await supabase.auth.resetPasswordForEmail(email)
+// `next` is where to go after the new password is set ('grab' or the booking app).
+// The redirect URL must be allowed in Supabase → Auth → URL Configuration, otherwise
+// Supabase falls back to the Site URL.
+export async function resetPassword(email, next) {
+  const redirectTo = window.location.origin + import.meta.env.BASE_URL + (next ? `?next=${next}` : '')
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+  if (error) throw error
+}
+// Calls cb('recovery') when the page was opened from a valid reset link,
+// cb('expired') when the link was invalid or already used.
+export function onPasswordRecovery(cb) {
+  if (recoveryLink) cb('recovery')
+  else if (recoveryLinkError) cb('expired')
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') cb('recovery')
+  })
+  return () => subscription.unsubscribe()
+}
+// Only valid inside a recovery session, so no current password is needed.
+export async function setNewPassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
   if (error) throw error
 }
 export async function updateName(userId, name) {
