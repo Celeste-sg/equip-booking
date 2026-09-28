@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { subscribeEquipment, addEquipment, updateEquipment, deleteEquipment, subscribeAllBookings, updateBooking, subscribeAllProfiles, updateProfileRole } from '$backend'
+import { subscribeEquipment, addEquipment, updateEquipment, deleteEquipment, subscribeAllBookings, updateBooking, updateProfileRole } from '$backend'
 import { format, parseISO } from 'date-fns'
-import { countGrabActivityByUser } from '../grab/api'
+import useUserActivity from '../grab/useUserActivity'
 
 export default function Admin() {
   const [tab, setTab] = useState('equipment')
@@ -151,26 +151,9 @@ function BookingsManager() {
 
 const USER_FILTERS = [['all', 'All'], ['booking', '🔬 Booking'], ['grab', '🧋 Grab'], ['both', 'Both'], ['none', 'No activity']]
 
-// Both apps share one user table, so tag each user by what they have actually used.
 function UsersManager() {
-  const [users, setUsers] = useState([])
-  const [bookings, setBookings] = useState([])
-  const [grabCounts, setGrabCounts] = useState({})
-  const [grabError, setGrabError] = useState('')
+  const { rows, grabError } = useUserActivity()
   const [filter, setFilter] = useState('all')
-  useEffect(() => subscribeAllProfiles(setUsers), [])
-  useEffect(() => subscribeAllBookings(setBookings), [])
-  useEffect(() => { countGrabActivityByUser().then(setGrabCounts).catch(err => setGrabError(err.message)) }, [])
-
-  const bookingCounts = {}
-  for (const b of bookings) bookingCounts[b.userId] = (bookingCounts[b.userId] || 0) + 1
-
-  const rows = users.map(u => {
-    const nBooking = bookingCounts[u.id] || 0
-    const nGrab = grabCounts[u.id] || 0
-    const kind = nBooking && nGrab ? 'both' : nBooking ? 'booking' : nGrab ? 'grab' : 'none'
-    return { ...u, nBooking, nGrab, kind }
-  })
   const counts = Object.fromEntries(USER_FILTERS.map(([k]) => [k, k === 'all' ? rows.length : rows.filter(r => r.kind === k).length]))
   const shown = filter === 'all' ? rows : rows.filter(r => r.kind === filter)
 

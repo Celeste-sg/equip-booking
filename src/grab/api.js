@@ -157,7 +157,7 @@ export async function leaveEvent(eventId, userId) {
   if (error) throw error
 }
 
-// Admin: how many Grab trips each user has created or joined, keyed by user id.
+// Admin: Grab trips each user created / joined, keyed by user id.
 export async function countGrabActivityByUser() {
   const [events, joins] = await Promise.all([
     supabase.from('grab_events').select('creator_id'),
@@ -166,7 +166,8 @@ export async function countGrabActivityByUser() {
   if (events.error) throw events.error
   if (joins.error) throw joins.error
   const counts = {}
-  for (const e of events.data) counts[e.creator_id] = (counts[e.creator_id] || 0) + 1
-  for (const p of joins.data) counts[p.user_id] = (counts[p.user_id] || 0) + 1
+  const get = (id) => (counts[id] ||= { created: 0, joined: 0 })
+  for (const e of events.data) get(e.creator_id).created++
+  for (const p of joins.data) get(p.user_id).joined++
   return counts
 }
