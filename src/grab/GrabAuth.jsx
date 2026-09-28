@@ -43,7 +43,7 @@ export default function GrabAuth() {
     setBusy(true)
     try {
       if (isRegister) {
-        await signup(email.trim(), password, name.trim())
+        await signup(email.trim(), password, name.trim(), 'grab')
         // If email confirmation is off we are logged in and this page unmounts.
         setNotice('注册成功！如果没有自动登录，请先到邮箱点击确认链接，再回来登录。')
       } else {

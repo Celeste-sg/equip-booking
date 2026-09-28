@@ -60,8 +60,9 @@ export async function login(email, password) {
   const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) throw error
 }
-export async function signup(email, password, name) {
-  const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } })
+// `app` ('booking' | 'grab') records which page the account was created from.
+export async function signup(email, password, name, app) {
+  const { error } = await supabase.auth.signUp({ email, password, options: { data: { name, signup_app: app } } })
   if (error) throw error
 }
 export async function logout() {

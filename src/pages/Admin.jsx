@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { subscribeEquipment, addEquipment, updateEquipment, deleteEquipment, subscribeAllBookings, updateBooking, subscribeAllProfiles, updateProfileRole } from '$backend'
 import { format, parseISO } from 'date-fns'
+import { countGrabActivityByUser } from '../grab/api'
 
 export default function Admin() {
   const [tab, setTab] = useState('equipment')
@@ -148,9 +149,30 @@ function BookingsManager() {
   )
 }
 
+const USER_FILTERS = [['all', 'All'], ['booking', '🔬 Booking'], ['grab', '🧋 Grab'], ['both', 'Both'], ['none', 'No activity']]
+
+// Both apps share one user table, so tag each user by what they have actually used.
 function UsersManager() {
   const [users, setUsers] = useState([])
+  const [bookings, setBookings] = useState([])
+  const [grabCounts, setGrabCounts] = useState({})
+  const [grabError, setGrabError] = useState('')
+  const [filter, setFilter] = useState('all')
   useEffect(() => subscribeAllProfiles(setUsers), [])
+  useEffect(() => subscribeAllBookings(setBookings), [])
+  useEffect(() => { countGrabActivityByUser().then(setGrabCounts).catch(err => setGrabError(err.message)) }, [])
+
+  const bookingCounts = {}
+  for (const b of bookings) bookingCounts[b.userId] = (bookingCounts[b.userId] || 0) + 1
+
+  const rows = users.map(u => {
+    const nBooking = bookingCounts[u.id] || 0
+    const nGrab = grabCounts[u.id] || 0
+    const kind = nBooking && nGrab ? 'both' : nBooking ? 'booking' : nGrab ? 'grab' : 'none'
+    return { ...u, nBooking, nGrab, kind }
+  })
+  const counts = Object.fromEntries(USER_FILTERS.map(([k]) => [k, k === 'all' ? rows.length : rows.filter(r => r.kind === k).length]))
+  const shown = filter === 'all' ? rows : rows.filter(r => r.kind === filter)
 
   async function toggleAdmin(user) {
     const newRole = user.role === 'admin' ? 'user' : 'admin'
@@ -159,20 +181,43 @@ function UsersManager() {
   }
 
   return (
-    <div className="space-y-2">
-      {users.map(u => (
-        <div key={u.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
-          <div>
-            <div className="font-medium text-gray-800 text-sm">{u.name}</div>
-            <div className="text-xs text-gray-500">{u.email}</div>
-          </div>
-          <button onClick={() => toggleAdmin(u)}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${u.role === 'admin' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {u.role === 'admin' ? 'Admin' : 'User'}
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {USER_FILTERS.map(([k, label]) => (
+          <button key={k} onClick={() => setFilter(k)}
+            className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${filter === k ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-500 hover:text-gray-700'}`}>
+            {label} <span className="text-xs opacity-70">{counts[k]}</span>
           </button>
-        </div>
-      ))}
-      {users.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No users yet.</p>}
+        ))}
+      </div>
+      {grabError && <p className="text-xs text-red-500">Couldn't load Grab activity: {grabError}</p>}
+      <div className="space-y-2">
+        {shown.map(u => (
+          <div key={u.id} className={`bg-white border border-gray-200 border-l-4 rounded-xl px-4 py-3 flex items-center justify-between ${
+            u.kind === 'booking' ? 'border-l-blue-500' : u.kind === 'grab' ? 'border-l-amber-400' : u.kind === 'both' ? 'border-l-purple-500' : 'border-l-gray-200'}`}>
+            <div>
+              <div className="font-medium text-gray-800 text-sm">{u.name}</div>
+              <div className="text-xs text-gray-500">{u.email}</div>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {u.nBooking > 0 && (
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">🔬 Booking · {u.nBooking}</span>
+                )}
+                {u.nGrab > 0 && (
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">🧋 Grab · {u.nGrab}</span>
+                )}
+                {u.kind === 'none' && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">No activity yet</span>
+                )}
+              </div>
+            </div>
+            <button onClick={() => toggleAdmin(u)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${u.role === 'admin' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {u.role === 'admin' ? 'Admin' : 'User'}
+            </button>
+          </div>
+        ))}
+        {shown.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No users here.</p>}
+      </div>
     </div>
   )
 }

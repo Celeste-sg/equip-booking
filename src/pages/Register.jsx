@@ -16,7 +16,7 @@ export default function Register() {
     if (password.length < 6) return setError('Password must be at least 6 characters.')
     setLoading(true)
     try {
-      await signup(email, password, name)
+      await signup(email, password, name, 'booking')
     } catch (err) {
       if (err.code === 'auth/email-already-in-use') {
         setError('This email is already registered.')
