@@ -171,3 +171,9 @@ export async function countGrabActivityByUser() {
   for (const p of joins.data) get(p.user_id).joined++
   return counts
 }
+
+// Admin: move a user to the other app's user list ('booking' | 'grab').
+export async function setSignupApp(userId, app) {
+  const { error } = await supabase.from('profiles').update({ signup_app: app }).eq('id', userId)
+  if (error) throw error
+}

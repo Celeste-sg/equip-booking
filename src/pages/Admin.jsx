@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { subscribeEquipment, addEquipment, updateEquipment, deleteEquipment, subscribeAllBookings, updateBooking, updateProfileRole } from '$backend'
 import { format, parseISO } from 'date-fns'
 import useUserActivity from '../grab/useUserActivity'
+import { setSignupApp } from '../grab/api'
 
 export default function Admin() {
   const [tab, setTab] = useState('equipment')
@@ -149,58 +150,61 @@ function BookingsManager() {
   )
 }
 
-const USER_FILTERS = [['all', 'All'], ['booking', '🔬 Booking'], ['grab', '🧋 Grab'], ['both', 'Both'], ['none', 'No activity']]
-
+// Only users who registered on instrument booking; Grab users are on the Grab admin page.
 function UsersManager() {
-  const { rows, grabError } = useUserActivity()
-  const [filter, setFilter] = useState('all')
-  const counts = Object.fromEntries(USER_FILTERS.map(([k]) => [k, k === 'all' ? rows.length : rows.filter(r => r.kind === k).length]))
-  const shown = filter === 'all' ? rows : rows.filter(r => r.kind === filter)
+  const { byApp, grabError } = useUserActivity()
+  const mine = byApp('booking')
+  const unassigned = byApp(null)
+  const grabCount = byApp('grab').length
 
   async function toggleAdmin(user) {
     const newRole = user.role === 'admin' ? 'user' : 'admin'
     if (newRole === 'admin' && !confirm(`Make ${user.name} an admin?`)) return
     await updateProfileRole(user.id, newRole)
   }
+  const move = (user, app) => setSignupApp(user.id, app).catch(err => alert('Failed: ' + err.message))
+
+  const card = (u, actions) => (
+    <div key={u.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="font-medium text-gray-800 text-sm">{u.name}</div>
+        <div className="text-xs text-gray-500 truncate">{u.email}</div>
+        <div className="text-xs text-gray-400 mt-0.5">
+          {u.nBooking} booking{u.nBooking === 1 ? '' : 's'}{u.nGrab > 0 && ` · also uses Grab (${u.nGrab})`}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">{actions}</div>
+    </div>
+  )
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {USER_FILTERS.map(([k, label]) => (
-          <button key={k} onClick={() => setFilter(k)}
-            className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${filter === k ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-500 hover:text-gray-700'}`}>
-            {label} <span className="text-xs opacity-70">{counts[k]}</span>
-          </button>
-        ))}
-      </div>
+    <div className="space-y-6">
       {grabError && <p className="text-xs text-red-500">Couldn't load Grab activity: {grabError}</p>}
-      <div className="space-y-2">
-        {shown.map(u => (
-          <div key={u.id} className={`bg-white border border-gray-200 border-l-4 rounded-xl px-4 py-3 flex items-center justify-between ${
-            u.kind === 'booking' ? 'border-l-blue-500' : u.kind === 'grab' ? 'border-l-amber-400' : u.kind === 'both' ? 'border-l-purple-500' : 'border-l-gray-200'}`}>
-            <div>
-              <div className="font-medium text-gray-800 text-sm">{u.name}</div>
-              <div className="text-xs text-gray-500">{u.email}</div>
-              <div className="flex flex-wrap gap-1.5 mt-1.5">
-                {u.nBooking > 0 && (
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">🔬 Booking · {u.nBooking}</span>
-                )}
-                {u.nGrab > 0 && (
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">🧋 Grab · {u.nGrab}</span>
-                )}
-                {u.kind === 'none' && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">No activity yet</span>
-                )}
-              </div>
-            </div>
-            <button onClick={() => toggleAdmin(u)}
-              className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${u.role === 'admin' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {u.role === 'admin' ? 'Admin' : 'User'}
-            </button>
-          </div>
-        ))}
-        {shown.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No users here.</p>}
-      </div>
+      <section className="space-y-2">
+        <h3 className="font-medium text-gray-800">🔬 Equipment Booking users <span className="text-gray-400 font-normal">{mine.length}</span></h3>
+        {mine.map(u => card(u, <>
+          <button onClick={() => { if (confirm(`Move ${u.name} to the Grab user list?`)) move(u, 'grab') }}
+            className="text-xs text-gray-400 hover:text-amber-600 transition-colors">Move to Grab</button>
+          <button onClick={() => toggleAdmin(u)}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${u.role === 'admin' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            {u.role === 'admin' ? 'Admin' : 'User'}
+          </button>
+        </>))}
+        {mine.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No users yet.</p>}
+      </section>
+
+      {unassigned.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="font-medium text-gray-800">Unassigned <span className="text-gray-400 font-normal">{unassigned.length}</span></h3>
+          <p className="text-xs text-gray-500">Registration app unknown. Choose where each one belongs.</p>
+          {unassigned.map(u => card(u, <>
+            <button onClick={() => move(u, 'booking')} className="text-xs font-medium px-3 py-1.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200">🔬 Booking</button>
+            <button onClick={() => move(u, 'grab')} className="text-xs font-medium px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200">🧋 Grab</button>
+          </>))}
+        </section>
+      )}
+
+      <p className="text-xs text-gray-400">{grabCount} user{grabCount === 1 ? '' : 's'} registered on Grab are listed on the Grab admin page (/grab/admin).</p>
     </div>
   )
 }
